@@ -1,0 +1,6 @@
+.version {
+  color: var(--wi-text);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}

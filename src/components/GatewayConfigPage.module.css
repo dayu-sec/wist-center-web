@@ -1,0 +1,13 @@
+.panel {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+@media (max-width: 640px) {
+  .panel {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+}

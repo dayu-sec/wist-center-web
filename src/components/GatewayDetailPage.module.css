@@ -1,0 +1,230 @@
+.backLink,
+.section {
+  width: min(100%, var(--wi-content-width));
+  margin-right: auto;
+  margin-left: auto;
+  padding-right: 28px;
+  padding-left: 28px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  outline: none;
+  color: var(--wi-primary);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--wi-primary-hover);
+}
+.backLink:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px var(--wi-focus-ring);
+}
+
+.card {
+  overflow: hidden;
+  border: 1px solid var(--wi-border);
+  border-radius: var(--wi-radius-lg);
+  background: var(--wi-bg-panel);
+  box-shadow: var(--wi-shadow-sm);
+}
+
+.cardHeader {
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--wi-border);
+  background: linear-gradient(135deg, var(--wi-bg-muted), var(--wi-bg-panel));
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gatewayId {
+  color: var(--wi-text);
+  font-size: 23px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+}
+.instanceId {
+  margin-top: 5px;
+  color: var(--wi-text-secondary);
+  font-size: 13px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 4px 0;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px 20px;
+  border-right: 1px solid var(--wi-border);
+}
+
+.metric:last-child {
+  border-right: 0;
+}
+.metricLabel {
+  color: var(--wi-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.metricValue {
+  color: var(--wi-primary);
+  font-size: 17px;
+  font-weight: 740;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  color: var(--wi-text);
+  font-size: 16px;
+  font-weight: 760;
+}
+.sectionMeta {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--wi-neutral-soft);
+  color: var(--wi-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.empty {
+  padding: 34px 20px;
+  border: 1px dashed var(--wi-border-strong);
+  border-radius: var(--wi-radius-lg);
+  background: color-mix(in srgb, var(--wi-bg-panel) 75%, transparent);
+  color: var(--wi-text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timelineItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.timelineDot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--wi-primary);
+  flex-shrink: 0;
+}
+
+.timelineBody {
+  min-width: 0;
+}
+
+.timelineText {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wi-text);
+}
+
+.timelineTime {
+  font-size: 12px;
+  color: var(--wi-text-muted);
+  margin-top: 2px;
+}
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.agentCard {
+  padding: 16px;
+  border: 1px solid var(--wi-border);
+  border-radius: var(--wi-radius-md);
+  background: var(--wi-bg-panel);
+  box-shadow: var(--wi-shadow-sm);
+}
+
+.agentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 13px;
+}
+
+.agentId {
+  overflow-wrap: anywhere;
+  color: var(--wi-text);
+  font-weight: 700;
+}
+.agentMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--wi-text-secondary);
+  font-size: 12px;
+}
+.agentMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 10px;
+  color: var(--wi-text-secondary);
+  font-size: 12px;
+}
+.agentLastSeen {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wi-border);
+  color: var(--wi-text-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 800px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metric {
+    border-bottom: 1px solid var(--wi-border);
+  }
+}
+
+@media (max-width: 640px) {
+  .backLink,
+  .section {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+  .agentGrid {
+    grid-template-columns: 1fr;
+  }
+}

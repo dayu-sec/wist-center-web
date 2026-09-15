@@ -1,0 +1,6 @@
+.instance {
+  color: var(--wi-text-secondary);
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
