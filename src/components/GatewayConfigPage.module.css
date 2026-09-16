@@ -1,13 +1,11 @@
 .panel {
-  width: 100%;
+  width: calc(100% - 48px);
   max-width: 780px;
   margin: 0 auto;
-  padding: 0 28px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 860px) {
   .panel {
-    padding-right: 18px;
-    padding-left: 18px;
+    width: calc(100% - 32px);
   }
 }

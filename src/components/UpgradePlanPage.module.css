@@ -3,16 +3,20 @@
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   align-items: start;
   gap: 16px;
-  width: 100%;
-  max-width: var(--wi-content-width);
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
   margin: 0 auto;
-  padding: 0 28px;
+}
+
+@media (max-width: 860px) {
+  .grid {
+    width: calc(100% - 32px);
+    max-width: none;
+  }
 }
 
 @media (max-width: 640px) {
   .grid {
     grid-template-columns: 1fr;
-    padding-right: 18px;
-    padding-left: 18px;
   }
 }

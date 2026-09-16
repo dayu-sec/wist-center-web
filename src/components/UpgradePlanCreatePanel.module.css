@@ -3,9 +3,9 @@
 .block {
   margin-bottom: 14px;
   padding: 12px;
-  border: 1px solid var(--wi-border);
-  border-radius: 8px;
-  background: var(--wi-bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
 }
 
 .blockHeader {
@@ -19,18 +19,29 @@
 .blockTitle {
   font-size: 13px;
   font-weight: 700;
-  color: var(--wi-text);
+  color: var(--text);
 }
 
 .addButton {
-  border: 1px solid var(--wi-border);
-  border-radius: 6px;
-  background: var(--wi-bg-panel);
-  color: var(--wi-primary);
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 700;
-  padding: 4px 10px;
   cursor: pointer;
+}
+
+.addButton:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.addButton:focus-visible {
+  box-shadow: var(--ring);
 }
 
 .targetRow {
@@ -47,22 +58,30 @@
 
 .input {
   min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid var(--wi-border);
-  border-radius: 6px;
-  background: var(--wi-bg-panel);
-  color: var(--wi-text);
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
   font-size: 13px;
 }
 
 .removeButton {
+  min-height: 28px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--wi-danger);
+  color: var(--crit);
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  padding: 4px 8px;
+}
+
+.removeButton:hover:not(:disabled) {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
 }
 
 .removeButton:disabled {
@@ -79,29 +98,35 @@
 .checkbox {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border: 1px solid var(--wi-border);
-  border-radius: 6px;
-  background: var(--wi-bg-panel);
-  font-size: 12px;
-  color: var(--wi-text);
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 12.5px;
+  color: var(--text-2);
   cursor: pointer;
+}
+
+.checkbox:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .checkboxSub {
   display: block;
   font-size: 11px;
-  color: var(--wi-text-muted);
+  color: var(--text-3);
 }
 
 .stepBlock {
   margin-bottom: 10px;
   padding: 10px;
-  border: 1px solid var(--wi-border);
-  border-radius: 8px;
-  background: var(--wi-bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
 }
+
 
 .stepHeader {
   display: flex;
@@ -109,19 +134,24 @@
   justify-content: space-between;
   margin-bottom: 8px;
   font-size: 13px;
-  color: var(--wi-text);
+  color: var(--text);
 }
 
 .formAction {
-  margin-top: 6px;
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
 .empty {
   padding: 16px 12px;
-  border: 1px dashed var(--wi-border-strong);
-  border-radius: 6px;
-  color: var(--wi-text-muted);
-  font-size: 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 12.5px;
   text-align: center;
 }

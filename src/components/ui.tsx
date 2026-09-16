@@ -3,7 +3,6 @@ import type {
   InputHTMLAttributes,
   ButtonHTMLAttributes,
 } from "react";
-import { GlobalTopNavigation } from "./GlobalTopNavigation";
 import styles from "./ui.module.css";
 
 export function formatDateTime(value: string | Date): string {
@@ -87,9 +86,7 @@ export function PageShell({
 }) {
   return (
     <div className={styles.pageShell}>
-      <GlobalTopNavigation />
       <header className={styles.pageHeader}>
-        <div className={styles.pageEyebrow}>WarpInsight Control Plane</div>
         <h1 className={styles.pageTitle}>{title}</h1>
         <p className={styles.pageSummary}>{summary}</p>
       </header>
@@ -151,20 +148,24 @@ export function SectionCard({
   );
 }
 
+/** KPI 磁贴：左侧色条表达状态，数值等宽，hint 补充口径说明。 */
 export function MetricCard({
   label,
   value,
+  hint,
   tone,
 }: {
   label: string;
   value: ReactNode;
+  hint?: string;
   tone?: MetricTone;
 }) {
   const toneClass = tone ? METRIC_TONE_CLASS[tone] : undefined;
   return (
-    <div className={styles.metric}>
-      <div className={styles.metricLabel}>{label}</div>
-      <div className={`${styles.metricValue} ${toneClass ?? ""}`}>{value}</div>
+    <div className={`${styles.metric} ${toneClass ?? ""}`}>
+      <span className={styles.metricLabel}>{label}</span>
+      <span className={styles.metricValue}>{value}</span>
+      {hint ? <span className={styles.metricHint}>{hint}</span> : null}
     </div>
   );
 }

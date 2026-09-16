@@ -1,0 +1,41 @@
+name: Build & Test
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    types: [opened, reopened]
+    branches:
+      - "*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+# 说明：本文件原先逐字节复制自 wist-gateway-web 的 ci.yml，已按本项目的实际能力收敛。
+# 本项目 package.json 只有 dev / build / preview，没有测试脚本、也没有 tests/ 目录，
+# 因此移除了两条必然失败（Missing script）的步骤：
+#   - `npm run test:bundle`             （网关侧的 admin token 打包泄漏检查）
+#   - `npm run test:gateway-initialize` （网关初始化契约，属 gateway 侧，与本项目无关）
+# 若要把其中对本项目同样适用的能力补回来（例如打包产物不得泄漏 Admin Token），
+# 需先在本仓加 tests/ 与对应的 npm script，再在下面恢复步骤。

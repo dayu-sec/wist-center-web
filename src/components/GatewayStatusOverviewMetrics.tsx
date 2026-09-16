@@ -33,20 +33,33 @@ export function GatewayStatusOverviewMetrics({
         <MetricCard
           label="网关总数"
           value={list?.gatewayCount ?? "—"}
+          hint="已注册的 WarpGateWay 实例总数"
           tone="accent"
         />
         <MetricCard
           label="在线"
           value={list?.onlineCount ?? "—"}
+          hint="状态为 online 的实例数"
           tone="green"
         />
         <MetricCard
           label="降级"
           value={list?.degradedCount ?? "—"}
+          hint="健康状态为 degraded 的实例数"
           tone="amber"
         />
-        <MetricCard label="离线" value={list?.offlineCount ?? "—"} tone="red" />
-        <MetricCard label="平均在线率" value={uptimeText} tone="green" />
+        <MetricCard
+          label="离线"
+          value={list?.offlineCount ?? "—"}
+          hint="状态为 offline 的实例数"
+          tone="red"
+        />
+        <MetricCard
+          label="平均在线率"
+          value={uptimeText}
+          hint="各实例近 1 小时在线率均值"
+          tone="green"
+        />
       </div>
     </div>
   );

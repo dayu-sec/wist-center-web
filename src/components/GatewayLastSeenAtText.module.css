@@ -1,5 +1,7 @@
 .text {
-  color: var(--wi-text-secondary);
-  font-size: 13px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

@@ -121,7 +121,6 @@ export function GatewayInstanceDetailPage() {
         <div className={styles.content}>
           <section className={styles.hero}>
             <div>
-              <div className={styles.eyebrow}>Gateway Instance</div>
               <h2 className={styles.gatewayId}>{instance.gatewayId}</h2>
               <p className={styles.instanceId}>
                 {instance.instanceId || "实例尚未上报 instance_id"}

@@ -2,9 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: min(100%, var(--wi-content-width));
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
   margin: 0 auto;
-  padding: 0 28px;
 }
 
 .item {
@@ -13,10 +13,10 @@
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid var(--wi-border);
-  border-radius: 8px;
-  background: var(--wi-bg-panel);
-  box-shadow: var(--wi-shadow-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .itemMain {
@@ -25,30 +25,31 @@
 
 .itemTitle {
   font-weight: 700;
-  color: var(--wi-text);
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .itemSub {
   margin-top: 3px;
   font-size: 12px;
-  color: var(--wi-text-muted);
+  color: var(--text-3);
 }
 
 .approveButton {
   flex-shrink: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: var(--wi-primary);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
   color: #ffffff;
   font-size: 13px;
   font-weight: 700;
-  padding: 8px 16px;
+  min-height: 34px;
+  padding: 0 14px;
   cursor: pointer;
 }
 
 .approveButton:hover {
-  background: var(--wi-primary-hover);
+  background: var(--accent-hover);
 }
 
 .approveButton:disabled {
@@ -57,30 +58,31 @@
 }
 
 .empty {
-  width: min(100%, var(--wi-content-width));
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
   margin: 0 auto;
-  padding: 30px 28px;
-  border: 1px dashed var(--wi-border-strong);
-  border-radius: 8px;
-  color: var(--wi-text-muted);
+  padding: 30px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
   font-size: 13px;
   text-align: center;
 }
 
 .approvedNotice {
-  width: min(100%, var(--wi-content-width));
-  margin: 12px auto 0;
-  padding: 10px 28px;
-  color: var(--wi-primary);
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+  color: var(--ok);
   font-size: 13px;
   font-weight: 600;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 860px) {
   .list,
   .empty,
   .approvedNotice {
-    padding-right: 18px;
-    padding-left: 18px;
+    width: calc(100% - 32px);
+    max-width: none;
   }
 }

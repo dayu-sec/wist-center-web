@@ -26,7 +26,6 @@ export function ReleasePage() {
       <section className={styles.workspace}>
         <header className={styles.workspaceHeader}>
           <div>
-            <div className={styles.eyebrow}>Release Workspace</div>
             <h2 className={styles.workspaceTitle}>发布新版本</h2>
             <p className={styles.workspaceSubtitle}>
               一次只处理一个发布目标，减少误发布并让历史记录保持聚焦。

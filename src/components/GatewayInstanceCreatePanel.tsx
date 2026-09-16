@@ -105,7 +105,6 @@ export function GatewayInstanceCreatePanel() {
     <section className={styles.panel}>
       <header className={styles.header}>
         <div className={styles.headerText}>
-          <span className={styles.eyebrow}>Gateway Provisioning</span>
           <h2 className={styles.title}>新增网关实例</h2>
           <p className={styles.subtitle}>
             创建待接入实例并生成初始化 URL、镜像信息和一次性安装指引。

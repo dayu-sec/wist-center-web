@@ -1,46 +1,39 @@
+/*
+ * 共享 UI 基元 —— 与 wist-gateway-web 同一套语汇：
+ * 内容块统一居中在 --content-max 内、四周留 24px 侧边距（小屏收到 16px），
+ * 表面只有一层（--surface + --border + --shadow-sm），层级交给表面色差表达。
+ */
+
 .pageShell {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  min-height: 100vh;
-  padding-bottom: 48px;
-  background:
-    radial-gradient(
-      circle at 12% 0,
-      color-mix(in srgb, var(--wi-primary) 9%, transparent),
-      transparent 28rem
-    ),
-    linear-gradient(180deg, var(--wi-bg-subtle) 0, var(--wi-bg-canvas) 310px);
+  gap: 18px;
+  min-height: 100%;
+  padding-bottom: 56px;
 }
 
 .pageHeader {
-  width: min(100%, var(--wi-content-width));
+  width: 100%;
+  max-width: var(--content-max);
   margin: 0 auto;
-  padding: 34px 28px 20px;
-}
-
-.pageEyebrow {
-  margin-bottom: 8px;
-  color: var(--wi-primary);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  padding: 26px 24px 0;
 }
 
 .pageTitle {
-  color: var(--wi-text);
-  font-size: clamp(26px, 3vw, 34px);
-  font-weight: 780;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
 .pageSummary {
-  max-width: 760px;
-  margin-top: 8px;
-  color: var(--wi-text-secondary);
-  font-size: 14px;
-  line-height: 1.65;
+  max-width: 800px;
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 13.5px;
+  line-height: 1.6;
 }
 
 .pageMain {
@@ -49,152 +42,199 @@
   flex-direction: column;
   gap: 18px;
   width: 100%;
+  min-width: 0;
 }
+
+/* 内容块：所有直接放在 pageMain 下的区块都用它对齐左右边界。 */
+.block {
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+}
+
+.blockNarrow {
+  width: calc(100% - 48px);
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+/* ---------- 徽标：语义三元组（border + soft + color），不用小圆点 ---------- */
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: 3px 9px;
+  height: 21px;
+  padding: 0 9px;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
-  line-height: 1.35;
   white-space: nowrap;
 }
 
-.badge::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 15%, transparent);
+.badgeGreen {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
 }
 
-.badgeGreen {
-  background: var(--wi-success-soft);
-  color: var(--wi-success);
-}
 .badgeAmber {
-  background: var(--wi-warning-soft);
-  color: var(--wi-warning);
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
 }
+
 .badgeRed {
-  background: var(--wi-danger-soft);
-  color: var(--wi-danger);
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
 }
+
 .badgeGray {
-  background: var(--wi-neutral-soft);
-  color: var(--wi-text-secondary);
+  border-color: var(--border-strong);
+  background: var(--unknown-soft);
+  color: var(--text-3);
 }
+
 .badgeBlue {
-  background: var(--wi-primary-soft);
-  color: var(--wi-primary);
+  border-color: var(--border-strong);
+  background: var(--info-soft);
+  color: var(--info);
 }
+
+/* ---------- 面板与卡片 ---------- */
 
 .card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   width: 100%;
-  padding: 20px;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-lg);
-  background: var(--wi-bg-panel);
-  box-shadow: var(--wi-shadow-sm);
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .cardHeader {
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--wi-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .cardTitle {
-  color: var(--wi-text);
+  color: var(--text);
   font-size: 16px;
-  font-weight: 760;
-  line-height: 1.35;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .cardSubtitle {
-  margin-top: 5px;
-  color: var(--wi-text-muted);
-  font-size: 12px;
+  color: var(--text-3);
+  font-size: 12.5px;
   line-height: 1.55;
 }
 
+/* ---------- KPI 磁贴：左侧色条表达状态，数值等宽 ---------- */
+
 .metric {
+  --tile-accent: var(--unknown);
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 108px;
-  padding: 17px 18px;
+  gap: 6px;
+  min-height: 104px;
+  padding: 16px 17px 15px 19px;
   overflow: hidden;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-md);
-  background: var(--wi-bg-panel);
-  box-shadow: var(--wi-shadow-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
-.metric::after {
+.metric::before {
   position: absolute;
-  right: -18px;
-  bottom: -30px;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: color-mix(in srgb, currentColor 7%, transparent);
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--tile-accent);
   content: "";
 }
 
 .metricLabel {
-  color: var(--wi-text-muted);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .metricValue {
-  position: relative;
-  z-index: 1;
-  color: var(--wi-text);
-  font-size: 30px;
-  font-weight: 780;
-  letter-spacing: -0.03em;
-  line-height: 1;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.metricHint {
+  display: -webkit-box;
+  margin-top: auto;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .metricToneAccent {
-  color: var(--wi-primary);
+  --tile-accent: var(--accent);
 }
 .metricToneGreen {
-  color: var(--wi-success);
+  --tile-accent: var(--ok);
 }
 .metricToneAmber {
-  color: var(--wi-warning);
+  --tile-accent: var(--warn);
 }
 .metricToneRed {
-  color: var(--wi-danger);
+  --tile-accent: var(--crit);
 }
+
+.metricToneRed .metricValue {
+  color: var(--crit);
+}
+
+.metricToneAmber .metricValue {
+  color: var(--warn);
+}
+
+/* ---------- 表单 ---------- */
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .fieldLabel {
-  color: var(--wi-text-secondary);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .fieldHint {
-  color: var(--wi-text-muted);
-  font-size: 11px;
-  line-height: 1.45;
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
 .formStack {
@@ -207,148 +247,154 @@
 .formActions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 .input {
   width: 100%;
-  height: 38px;
-  padding: 0 11px;
-  border: 1px solid var(--wi-border-strong);
-  border-radius: var(--wi-radius-sm);
+  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   outline: none;
-  background: var(--wi-bg-elevated);
-  color: var(--wi-text);
+  background: var(--bg-elevated);
+  color: var(--text);
   font-size: 13px;
   transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .input::placeholder {
-  color: var(--wi-text-muted);
+  color: var(--text-4);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--text-4);
 }
 
 .input:focus-visible {
-  border-color: var(--wi-primary);
-  box-shadow: 0 0 0 3px var(--wi-focus-ring);
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
 }
 
 .primaryButton {
-  min-height: 38px;
-  padding: 0 17px;
-  border: 1px solid transparent;
-  border-radius: var(--wi-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
   outline: none;
-  background: var(--wi-primary);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--wi-primary) 35%, transparent);
+  background: var(--accent);
   color: #ffffff;
   font-size: 13px;
-  font-weight: 750;
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    transform 80ms ease,
-    box-shadow 120ms ease;
+  font-weight: 700;
 }
 
 .primaryButton:hover:not(:disabled) {
-  background: var(--wi-primary-hover);
+  background: var(--accent-hover);
 }
-.primaryButton:active:not(:disabled) {
-  transform: translateY(1px);
-}
+
 .primaryButton:focus-visible {
-  box-shadow: 0 0 0 3px var(--wi-focus-ring);
+  box-shadow: var(--ring);
 }
+
 .primaryButton:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
+/* ---------- 回执 / 结果 ---------- */
+
 .receipt {
-  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 14px;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-md);
-  background: var(--wi-bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
 }
 
 .receiptTitle {
-  margin-bottom: 10px;
-  color: var(--wi-primary);
-  font-size: 12px;
-  font-weight: 800;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
 }
 
 .receiptGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px 14px;
 }
 
 .receiptItem {
   min-width: 0;
 }
+
 .receiptLabel {
-  color: var(--wi-text-muted);
-  font-size: 11px;
+  color: var(--text-4);
+  font-size: 11.5px;
 }
+
 .receiptValue {
   margin-top: 3px;
   overflow-wrap: anywhere;
-  color: var(--wi-text);
+  color: var(--text);
+  font-family: var(--font-mono);
   font-size: 13px;
-  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
+/* ---------- 状态提示 ---------- */
+
 .errorBanner {
-  width: calc(100% - 56px);
-  max-width: calc(var(--wi-content-width) - 56px);
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
   margin: 0 auto;
-  padding: 11px 13px;
-  border: 1px solid color-mix(in srgb, var(--wi-danger) 35%, var(--wi-border));
-  border-radius: var(--wi-radius-md);
-  background: var(--wi-danger-soft);
-  color: var(--wi-danger);
+  padding: 10px 13px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius);
+  background: var(--crit-soft);
+  color: var(--crit);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .loading {
-  color: var(--wi-text-muted);
+  color: var(--text-3);
   font-size: 13px;
 }
 
 .exampleTag {
-  padding: 3px 8px;
-  border: 1px solid var(--wi-border);
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: var(--wi-neutral-soft);
-  color: var(--wi-text-secondary);
+  background: var(--unknown-soft);
+  color: var(--text-3);
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 860px) {
   .pageHeader {
-    padding: 26px 18px 14px;
+    padding: 20px 16px 0;
   }
-  .pageMain {
-    gap: 14px;
-  }
+
+  .block,
+  .blockNarrow,
   .errorBanner {
-    width: calc(100% - 36px);
-  }
-  .card {
-    padding: 17px;
-  }
-  .formActions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .formActions > * {
-    width: 100%;
+    width: calc(100% - 32px);
+    max-width: none;
   }
 }

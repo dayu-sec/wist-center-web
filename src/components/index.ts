@@ -1,3 +1,5 @@
+export { AppLayout } from "./AppLayout";
+export { AppStatusBar } from "./AppStatusBar";
 export { GlobalTopNavigation } from "./GlobalTopNavigation";
 export { GatewayListPage } from "./GatewayListPage";
 export { GatewayStatusOverviewMetrics } from "./GatewayStatusOverviewMetrics";

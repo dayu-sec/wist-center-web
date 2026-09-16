@@ -2,10 +2,10 @@
 
 .panel {
   overflow: hidden;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-lg);
-  background: var(--wi-bg-panel);
-  box-shadow: var(--wi-shadow-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .header {
@@ -20,58 +20,52 @@
   min-width: 0;
 }
 
-.eyebrow {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--wi-primary);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
 .title {
-  color: var(--wi-text);
+  color: var(--text);
   font-size: 16px;
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .subtitle {
   margin-top: 4px;
-  color: var(--wi-text-muted);
-  font-size: 12px;
+  color: var(--text-3);
+  font-size: 12.5px;
   line-height: 1.5;
 }
 
 .toggleButton {
-  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  padding: 0 16px;
-  border: 1px solid transparent;
-  border-radius: var(--wi-radius-sm);
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
   outline: none;
-  background: var(--wi-primary);
+  background: var(--accent);
   color: #ffffff;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   cursor: pointer;
   transition:
-    background 120ms ease,
-    box-shadow 120ms ease;
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .toggleButton:hover {
-  background: var(--wi-primary-hover);
+  background: var(--accent-hover);
 }
 
 .toggleButton:focus-visible {
-  box-shadow: 0 0 0 3px var(--wi-focus-ring);
+  box-shadow: var(--ring);
 }
 
+/* 展开区下沉一档，让「面板 — 表单 — 提示」三层靠表面色差表达。 */
 .body {
   padding: 20px;
-  border-top: 1px solid var(--wi-border);
-  background: var(--wi-bg-muted);
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
 }
 
 .form {
@@ -93,11 +87,11 @@
   justify-content: space-between;
   gap: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--wi-border);
+  border-top: 1px solid var(--border);
 }
 
 .actionHint {
-  color: var(--wi-text-muted);
+  color: var(--text-3);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -105,14 +99,15 @@
 .install {
   margin-top: 16px;
   padding: 16px;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-md);
-  background: var(--wi-bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
+
 
 .installTitle {
   margin-bottom: 12px;
-  color: var(--wi-text);
+  color: var(--text);
   font-weight: 700;
 }
 
@@ -126,14 +121,14 @@
 
 .stepLabel {
   margin-bottom: 6px;
-  color: var(--wi-text-muted);
+  color: var(--text-3);
   font-size: 12px;
 }
 
 .codeBlock {
   position: relative;
-  border-radius: var(--wi-radius-sm);
-  background: var(--wi-code-bg);
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
 }
 
 .copyButton {
@@ -141,11 +136,12 @@
   top: 6px;
   right: 6px;
   padding: 2px 8px;
-  border: 1px solid var(--wi-code-button-border);
-  border-radius: 4px;
-  background: var(--wi-code-button-bg);
-  color: var(--wi-code-text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text-2);
   font-size: 11px;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -162,19 +158,20 @@
 }
 
 .copyButton:hover {
-  background: var(--wi-code-button-hover);
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .copyButton:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px var(--wi-focus-ring);
+  box-shadow: var(--ring);
 }
 
 .codeText {
   margin: 0;
   padding: 10px 120px 10px 10px;
   overflow-x: auto;
-  color: var(--wi-code-text);
+  color: var(--code-text);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -183,7 +180,7 @@
 
 .installHint {
   margin: 10px 0 0;
-  color: var(--wi-text-muted);
+  color: var(--text-3);
   font-size: 12px;
 }
 

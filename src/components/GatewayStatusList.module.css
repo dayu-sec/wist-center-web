@@ -1,21 +1,21 @@
+/* 网关运行状态分区：列表页的主内容块，卡片网格 + 空态。 */
+
 .wrapper,
 .section,
 .empty {
-  width: min(100%, var(--wi-content-width));
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
   margin: 0 auto;
-  padding-right: 28px;
-  padding-left: 28px;
 }
 
 .wrapper {
-  padding-top: 24px;
-  padding-bottom: 24px;
+  padding-top: 8px;
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .header {
@@ -26,25 +26,28 @@
 }
 
 .title {
-  color: var(--wi-text);
-  font-size: 16px;
-  font-weight: 760;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .subtitle {
-  margin-top: 3px;
-  color: var(--wi-text-muted);
-  font-size: 12px;
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.55;
 }
 
 .count {
-  padding: 4px 9px;
-  border: 1px solid var(--wi-border);
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--wi-bg-panel);
-  color: var(--wi-text-secondary);
-  font-size: 11px;
-  font-weight: 700;
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -58,46 +61,39 @@
 .empty {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  padding-top: 56px;
-  padding-bottom: 56px;
-  border: 1px dashed var(--wi-border-strong);
-  border-radius: var(--wi-radius-lg);
-  background: color-mix(in srgb, var(--wi-bg-panel) 72%, transparent);
-}
-
-.empty::before {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--wi-border);
-  border-radius: 9px;
-  background: var(--wi-bg-muted);
-  content: "";
+  gap: 6px;
+  padding: 34px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
 }
 
 .emptyTitle {
-  color: var(--wi-text-secondary);
-  font-size: 14px;
-  font-weight: 750;
-}
-.emptyHint {
-  color: var(--wi-text-muted);
-  font-size: 12px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
 }
 
-@media (max-width: 640px) {
+.emptyHint {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
   .wrapper,
   .section,
   .empty {
-    padding-right: 18px;
-    padding-left: 18px;
+    width: calc(100% - 32px);
+    max-width: none;
   }
+
   .header {
     align-items: flex-start;
     flex-direction: column;
     gap: 8px;
   }
+
   .grid {
     grid-template-columns: 1fr;
   }

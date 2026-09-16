@@ -1,12 +1,15 @@
+/* 版本发布页：发布工作区（目标切换 + 表单）与已部署版本清单。 */
+
 .workspace,
 .inventorySection {
-  width: min(100%, var(--wi-content-width));
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
   margin: 0 auto;
-  padding: 20px 28px;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-lg);
-  background: var(--wi-bg-panel);
-  box-shadow: var(--wi-shadow-sm);
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .workspaceHeader,
@@ -18,86 +21,79 @@
 }
 
 .workspaceHeader {
-  margin-bottom: 18px;
-}
-
-.eyebrow {
-  margin-bottom: 4px;
-  color: var(--wi-primary);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  margin-bottom: 16px;
 }
 
 .workspaceTitle {
-  color: var(--wi-text);
-  font-size: 17px;
-  font-weight: 760;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .workspaceSubtitle,
 .sectionSubtitle {
   margin-top: 4px;
-  color: var(--wi-text-muted);
-  font-size: 12px;
+  color: var(--text-3);
+  font-size: 12.5px;
   line-height: 1.55;
 }
 
+/* ---------- 发布目标切换：胶囊形式，与列表页过滤器同一套语汇 ---------- */
+
 .tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 4px;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-md);
-  background: var(--wi-bg-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  min-height: 48px;
-  padding: 8px 13px;
-  border: 1px solid transparent;
-  border-radius: var(--wi-radius-sm);
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   outline: none;
-  background: transparent;
-  color: var(--wi-text-secondary);
-  text-align: left;
+  background: var(--surface);
+  color: var(--text-2);
   cursor: pointer;
   transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .tab strong {
   color: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
+  font-weight: 700;
 }
 
 .tab span {
-  color: var(--wi-text-muted);
-  font-size: 11px;
+  color: var(--text-4);
+  font-size: 11.5px;
 }
 
 .tab:hover {
-  background: var(--wi-bg-hover);
-  color: var(--wi-text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .tab:focus-visible {
-  box-shadow: 0 0 0 3px var(--wi-focus-ring);
+  box-shadow: var(--ring);
 }
 
 .tabActive {
-  border-color: var(--wi-primary-border);
-  background: var(--wi-bg-panel);
-  color: var(--wi-primary);
-  box-shadow: var(--wi-shadow-sm);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.tabActive span {
+  color: var(--text-3);
 }
 
 .tabPanel {
@@ -110,15 +106,15 @@
 }
 
 .sectionHeader {
-  margin-bottom: 16px;
-  padding-bottom: 13px;
-  border-bottom: 1px solid var(--wi-border);
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 .sectionTitle {
-  color: var(--wi-text);
-  font-size: 15px;
-  font-weight: 760;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .inventoryGrid {
@@ -130,22 +126,27 @@
 .inventoryCard {
   min-width: 0;
   padding: 14px;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-md);
-  background: var(--wi-bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
 }
 
 .inventoryTitle {
   margin-bottom: 11px;
-  color: var(--wi-text);
+  color: var(--text);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
+
+/* ---------- 已部署版本清单：与主机列表同一套行式表格 ---------- */
 
 .table {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
 }
 
 .row {
@@ -154,26 +155,34 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid var(--wi-border);
-  border-radius: var(--wi-radius-sm);
-  background: var(--wi-bg-panel);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: rgba(255, 255, 255, 0.022);
 }
 
 .rowMain {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--wi-text);
-  font-size: 12px;
-  font-weight: 650;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .rowSub {
   display: block;
   margin-top: 2px;
   overflow-wrap: anywhere;
-  color: var(--wi-text-muted);
-  font-size: 11px;
+  color: var(--text-4);
+  font-family: var(--font);
+  font-size: 11.5px;
   font-weight: 400;
 }
 
@@ -182,27 +191,23 @@
 }
 
 .empty {
-  padding: 18px 12px;
-  border: 1px dashed var(--wi-border-strong);
-  border-radius: var(--wi-radius-sm);
-  color: var(--wi-text-muted);
-  font-size: 12px;
+  padding: 22px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 12.5px;
   text-align: center;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 860px) {
   .workspace,
   .inventorySection {
-    padding-right: 18px;
-    padding-left: 18px;
+    width: calc(100% - 32px);
+    max-width: none;
   }
+}
 
-  .tab {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 3px;
-  }
-
+@media (max-width: 640px) {
   .inventoryGrid {
     grid-template-columns: 1fr;
   }

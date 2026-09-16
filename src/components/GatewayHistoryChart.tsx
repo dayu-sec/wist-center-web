@@ -12,6 +12,9 @@ interface GatewayHistoryChartProps {
 
 type SampleValue = (sample: GatewayHistorySample) => number | null;
 
+const VIEW_WIDTH = 240;
+const VIEW_HEIGHT = 30;
+
 /** 在网关概览中展示最近窗口的 CPU、内存趋势和在线时间轴。 */
 export function GatewayHistoryChart({
   history,
@@ -58,21 +61,21 @@ export function GatewayHistoryChart({
 
       <TrendRow
         label="CPU"
+        color="var(--series-1)"
         value={formatPercent(
           latestValue(samples, (sample) => sample.cpuPercent),
         )}
         samples={samples}
         valueOf={(sample) => sample.cpuPercent}
-        tone="blue"
       />
       <TrendRow
         label="内存"
+        color="var(--series-3)"
         value={formatBytes(
           latestValue(samples, (sample) => sample.memoryBytes),
         )}
         samples={samples}
         valueOf={(sample) => sample.memoryBytes}
-        tone="green"
       />
       <div className={styles.availabilityRow}>
         <span className={styles.rowLabel}>在线</span>
@@ -102,36 +105,58 @@ export function GatewayHistoryChart({
   );
 }
 
+/**
+ * 单条趋势线：面积渐变 + 折线，与主控制台的迷你趋势线同一形态
+ * —— 只有折线时几十个采样点会挤成一根线，读不出量级。
+ */
 function TrendRow({
   label,
   value,
+  color,
   samples,
   valueOf,
-  tone,
 }: {
   label: string;
   value: string;
+  color: string;
   samples: GatewayHistorySample[];
   valueOf: SampleValue;
-  tone: "blue" | "green";
 }) {
-  const points = buildPolyline(samples, valueOf);
+  const points = buildPoints(samples, valueOf);
+  const gradientId = `gw-trend-${label === "CPU" ? "cpu" : "mem"}`;
+  const area = points
+    ? `M ${points[0].x},${VIEW_HEIGHT} ` +
+      points.map((point) => `L ${point.x},${point.y}`).join(" ") +
+      ` L ${points[points.length - 1].x},${VIEW_HEIGHT} Z`
+    : "";
+
   return (
     <div className={styles.trendRow}>
       <span className={styles.rowLabel}>{label}</span>
       <svg
         className={styles.sparkline}
-        viewBox="0 0 240 36"
+        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         preserveAspectRatio="none"
         role="img"
         aria-label={`${label} 最近 1 小时趋势`}
       >
-        <line className={styles.guide} x1="0" y1="18" x2="240" y2="18" />
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
         {points ? (
-          <polyline
-            className={tone === "blue" ? styles.blueLine : styles.greenLine}
-            points={points}
-          />
+          <>
+            <path d={area} fill={`url(#${gradientId})`} />
+            <polyline
+              className={styles.line}
+              points={points
+                .map((point) => `${point.x},${point.y}`)
+                .join(" ")}
+              stroke={color}
+            />
+          </>
         ) : null}
       </svg>
       <strong className={styles.rowValue}>{value}</strong>
@@ -139,34 +164,33 @@ function TrendRow({
   );
 }
 
-/** 按实际采样时间和当前序列值域生成 SVG 折线点。 */
-function buildPolyline(
+/** 按实际采样时间和序列值域生成折线点（x/y 已落到 viewBox 坐标系）。 */
+function buildPoints(
   samples: GatewayHistorySample[],
   valueOf: SampleValue,
-): string {
-  const points = samples.flatMap((sample) => {
+): { x: number; y: number }[] {
+  const raw = samples.flatMap((sample) => {
     const value = valueOf(sample);
     return value === null ? [] : [{ at: sample.at, value }];
   });
-  if (points.length === 0) return "";
-  const minAt = points[0]?.at ?? 0;
-  const maxAt = points[points.length - 1]?.at ?? minAt;
-  const values = points.map((point) => point.value);
+  if (raw.length === 0) return [];
+  const minAt = raw[0].at;
+  const maxAt = raw[raw.length - 1].at;
+  const values = raw.map((point) => point.value);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const timeRange = Math.max(maxAt - minAt, 1);
-  const valueRange = Math.max(
-    maxValue - minValue,
-    Math.abs(maxValue) * 0.08,
-    1,
-  );
-  return points
-    .map((point) => {
-      const x = ((point.at - minAt) / timeRange) * 240;
-      const y = 31 - ((point.value - minValue) / valueRange) * 26;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const valueRange = Math.max(maxValue - minValue, Math.abs(maxValue) * 0.08, 1);
+  return raw.map((point) => ({
+    x: Number((((point.at - minAt) / timeRange) * VIEW_WIDTH).toFixed(1)),
+    y: Number(
+      (
+        VIEW_HEIGHT -
+        3 -
+        ((point.value - minValue) / valueRange) * (VIEW_HEIGHT - 5)
+      ).toFixed(1),
+    ),
+  }));
 }
 
 function latestValue(
