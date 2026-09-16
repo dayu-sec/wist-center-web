@@ -57,15 +57,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 国内镜像源（腾讯云 TCR）：国内服务器拉 ghcr.io 很慢，客户端改用 TCR 地址。
+      # 凭据在 TCR 控制台生成（访问凭证），存 GitHub Secrets：TCR_USERNAME / TCR_PASSWORD。
+      - name: Login to TCR
+        uses: docker/login-action@v4
+        with:
+          registry: dy-sec.tencentcloudcr.com
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
       - name: Compute image tags
         id: meta
         run: |
           # 预发布 tag（v0.1.3-alpha / -beta / -rc …）只推该 tag，**不覆盖 :latest**。
           # 否则 :latest 会指向预发布产物，而 wist-center-stack 是按 :latest 拉镜像的。
+          # 两个源（ghcr / TCR）同进退。
+          tcr="dy-sec.tencentcloudcr.com/cloud/wist-center-web"
           tags="ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
+          tags="$(printf '%s\n%s' "$tags" "$tcr:${{ github.ref_name }}")"
           case "${{ github.ref_name }}" in
-            *-*) ;;
-            *) tags="$(printf '%s\n%s' "$tags" "ghcr.io/${{ github.repository }}:latest")" ;;
+            *-*)
+              ;;
+            *)
+              tags="$(printf '%s\n%s' "$tags" "ghcr.io/${{ github.repository }}:latest")"
+              tags="$(printf '%s\n%s' "$tags" "$tcr:latest")"
+              ;;
           esac
           printf 'tags<<__EOF__\n%s\n__EOF__\n' "$tags" >> "$GITHUB_OUTPUT"
 
@@ -85,3 +101,5 @@ jobs:
 # - 本次两处改动同样适用于 wist-gateway-web，若要两个仓库保持一致，需在那边同步：
 #     1) docker 前加 verify job（tag 推送不触发 ci.yml）；
 #     2) 预发布 tag 不再覆盖 :latest，并把 packages: write 收敛到 docker job。
+# - 腾讯云 TCR 双推（TCR 登录 + 算 tag 时带上 TCR 地址）已同步落在 wist-gateway-web，
+#   两个仓库保持一致；需在各自仓库 Secrets 配置 TCR_USERNAME / TCR_PASSWORD。
