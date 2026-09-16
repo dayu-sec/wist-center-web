@@ -22,3 +22,6 @@ pnpm-debug.log*
 # editor / OS
 .DS_Store
 .idea/
+
+.report
+.run*
