@@ -30,9 +30,11 @@ export interface GatewayCustomerBinding {
 }
 
 export interface GatewayInitialConfig {
+  gatewayId: string;
   controlCenterEndpoint: string;
-  policyVersion: string;
-  telemetryOutput: string;
+  protocolVersion: string;
+  serverTlsRequired: boolean;
+  enrollmentTokenId: string;
 }
 
 export interface WistAgentdRelease {

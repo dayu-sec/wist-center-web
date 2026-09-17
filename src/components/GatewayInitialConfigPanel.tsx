@@ -53,8 +53,9 @@ export function GatewayInitialConfigPanel() {
           title="初始配置"
           fields={[
             ["控制中心地址", config.controlCenterEndpoint],
-            ["策略版本", config.policyVersion],
-            ["遥测输出", config.telemetryOutput],
+            ["协议版本", config.protocolVersion],
+            ["服务端 TLS", config.serverTlsRequired ? "必须" : "可选"],
+            ["注册 Token", config.enrollmentTokenId || "—"],
           ]}
         />
       ) : null}

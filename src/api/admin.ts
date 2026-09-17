@@ -123,9 +123,11 @@ export interface GatewayCustomerBinding {
 }
 
 export interface GatewayInitialConfig {
+  gatewayId: string;
   controlCenterEndpoint: string;
-  policyVersion: string;
-  telemetryOutput: string;
+  protocolVersion: string;
+  serverTlsRequired: boolean;
+  enrollmentTokenId: string;
 }
 
 export interface WistAgentdRelease {
@@ -510,18 +512,26 @@ function normalizeGatewayCustomerBinding(payload: any): GatewayCustomerBinding {
 }
 
 function normalizeGatewayInitialConfig(payload: any): GatewayInitialConfig {
+  // 返回体是 { config: {...} }；直接给顶层对象时也接受（去外层包装后的形状）。
+  const config = payload?.config ?? payload;
   return {
+    gatewayId: requiredString(
+      pick(config, "gateway_id", "gatewayId"),
+      "config.gatewayId",
+    ),
     controlCenterEndpoint: requiredString(
-      pick(payload, "control_center_endpoint", "controlCenterEndpoint"),
+      pick(config, "control_center_endpoint", "controlCenterEndpoint"),
       "config.controlCenterEndpoint",
     ),
-    policyVersion: requiredString(
-      pick(payload, "policy_version", "policyVersion"),
-      "config.policyVersion",
+    protocolVersion: requiredString(
+      pick(config, "protocol_version", "protocolVersion"),
+      "config.protocolVersion",
     ),
-    telemetryOutput: requiredString(
-      pick(payload, "telemetry_output", "telemetryOutput"),
-      "config.telemetryOutput",
+    serverTlsRequired:
+      pick(config, "server_tls_required", "serverTlsRequired") === true,
+    enrollmentTokenId: requiredString(
+      pick(config, "enrollment_token_id", "enrollmentTokenId"),
+      "config.enrollmentTokenId",
     ),
   };
 }
@@ -997,9 +1007,11 @@ function exampleInitialConfig(
   command: GetGatewayInitialConfigCommand,
 ): GatewayInitialConfig {
   return {
+    gatewayId: command.instanceId,
     controlCenterEndpoint: "https://center.example.com",
-    policyVersion: "policy-v12",
-    telemetryOutput: "otlp://telemetry.example.com:4317",
+    protocolVersion: "1.0",
+    serverTlsRequired: true,
+    enrollmentTokenId: "ent-example",
   };
 }
 
