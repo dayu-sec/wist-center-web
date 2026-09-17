@@ -494,18 +494,20 @@ function normalizeGatewayInstance(payload: any): GatewayInstance {
 }
 
 function normalizeGatewayCustomerBinding(payload: any): GatewayCustomerBinding {
+  // 返回体是 { binding: {...} }；直接给顶层对象时也接受（去外层包装后的形状）。
+  const binding = payload?.binding ?? payload;
   return {
     gatewayId: requiredString(
-      pick(payload, "gateway_id", "gatewayId"),
+      pick(binding, "gateway_id", "gatewayId"),
       "binding.gatewayId",
     ),
     customerId: requiredString(
-      pick(payload, "customer_id", "customerId"),
+      pick(binding, "customer_id", "customerId"),
       "binding.customerId",
     ),
-    status: requiredString(payload.status, "binding.status"),
+    status: requiredString(pick(binding, "status"), "binding.status"),
     boundAt: requiredString(
-      pick(payload, "bound_at", "boundAt"),
+      pick(binding, "bound_at", "boundAt"),
       "binding.boundAt",
     ),
   };
