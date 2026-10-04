@@ -57,7 +57,8 @@ export function GatewayInstanceDetailPage() {
   const generatedInitUrl = initEndpoint;
   const initUrl = generatedInitUrl;
   const displayInitCurl =
-    initCurl ?? `curl -H "Authorization: Bearer <gateway-identity-token>" "${initEndpoint.split("#", 1)[0]}"`;
+    initCurl ??
+    `curl -H "Authorization: Bearer <置备引导 Token>" -H "X-Gateway-Identity-Token: <网关身份 ident_>" "${initEndpoint.split("#", 1)[0]}"`;
 
   useEffect(() => {
     setInitCurl(readGatewayInitCurl(gatewayId));
@@ -86,7 +87,7 @@ export function GatewayInstanceDetailPage() {
   function handleGenerateInitUrl() {
     if (!gatewayToken.trim()) return;
     setInitCurl(
-      `curl -H "Authorization: Bearer ${gatewayToken.trim()}" "${initEndpoint.split("#", 1)[0]}"`,
+      `curl -H "Authorization: Bearer ${gatewayToken.trim()}" -H "X-Gateway-Identity-Token: <网关身份 ident_>" "${initEndpoint.split("#", 1)[0]}"`,
     );
   }
 
@@ -142,9 +143,10 @@ export function GatewayInstanceDetailPage() {
               <div className={styles.endpointColumn}>
                 <div className={styles.tokenBuilder}>
                   <div>
-                    <span className={styles.infoLabel}>Gateway 身份 Token</span>
+                    <span className={styles.infoLabel}>置备引导 Token（bootstrap）</span>
                     <p className={styles.tokenHint}>
-                      创建 Gateway 实例时使用的身份凭证；用于生成本次 init_url 和 Center 接入 curl。
+                      创建实例时由 Center 一次性下发（<code>boot_…</code>）；填在下框生成 Center
+                      接入命令的 <code>Authorization</code>。不过期，但置备成功（被消费）即失效。
                     </p>
                   </div>
                   <div className={styles.tokenRow}>
@@ -153,7 +155,7 @@ export function GatewayInstanceDetailPage() {
                       type="password"
                       value={gatewayToken}
                       onChange={(event) => setGatewayToken(event.target.value)}
-                      placeholder="输入 Gateway 身份 Token"
+                      placeholder="输入置备引导 Token（boot_…）"
                       autoComplete="off"
                     />
                     <button
@@ -162,7 +164,7 @@ export function GatewayInstanceDetailPage() {
                       onClick={handleGenerateInitUrl}
                       disabled={!gatewayToken.trim()}
                     >
-                      生成接入 URL
+                      生成接入命令
                     </button>
                   </div>
                 </div>
@@ -184,7 +186,9 @@ export function GatewayInstanceDetailPage() {
                     <div>
                         <span className={styles.infoLabel}>Center 接入 curl</span>
                       <p className={styles.curlHint}>
-                        使用置备引导 Token 验证 Center 接入接口，命令可直接复制到终端执行。
+                        用置备引导 Token（<code>Authorization</code>）与网关身份
+                        （<code>X-Gateway-Identity-Token</code>）验证 Center 接入接口；身份从网关宿主读
+                        （gwlinkd 的 {"<state_dir>/identity"}），Center 不掌握。
                       </p>
                     </div>
                     <button
@@ -198,7 +202,7 @@ export function GatewayInstanceDetailPage() {
                   <pre className={styles.curlCode}>{displayInitCurl}</pre>
                   {!initCurl ? (
                     <p className={styles.curlPlaceholder}>
-                      当前页面没有保存创建回执，请输入 Gateway 身份 Token 后生成完整命令。
+                      当前页面没有保存创建回执，请填入置备引导 Token 生成完整命令。
                     </p>
                   ) : null}
                 </div>
