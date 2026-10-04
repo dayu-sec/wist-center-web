@@ -52,7 +52,7 @@ export function GatewayInstanceDetailPage() {
   } = useGatewayLifecycle(instance?.gatewayId ?? "");
   const initEndpoint =
     instance?.initUrl ??
-    `/api/v1/gateway/initial-config?instance_id=${encodeURIComponent(gatewayId)}`;
+    `/api/v1/gateway/link-upstream?gateway_id=${encodeURIComponent(gatewayId)}`;
   // init_url 不携带凭证（token 不进 URL），凭证走 config.toml / Authorization Header。
   const generatedInitUrl = initEndpoint;
   const initUrl = generatedInitUrl;

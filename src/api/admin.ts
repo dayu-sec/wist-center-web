@@ -193,7 +193,7 @@ export interface BindGatewayCustomerCommand {
 }
 
 export interface GetGatewayInitialConfigCommand {
-  instanceId: string;
+  gatewayId: string;
   requestedBy: string;
 }
 
@@ -970,7 +970,7 @@ function exampleGatewayInstance(
   command: CreateGatewayInstanceCommand,
 ): AdminCreateGatewayInstanceReturned {
   const gatewayId = command.gatewayName.trim();
-  const initEndpoint = `http://127.0.0.1:3100/api/v1/gateway/initial-config?instance_id=${gatewayId}`;
+  const initEndpoint = `http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=${gatewayId}`;
   // 示例数据也模拟 Center 自动签发，避免前端重新承担凭据输入职责。
   const bootstrapToken = `boot_${Math.random().toString(36).slice(2, 14)}`;
   // init_url 不携带凭证（token 不进 URL），凭证走 config.toml / Authorization Header。
@@ -1009,7 +1009,7 @@ function exampleInitialConfig(
   command: GetGatewayInitialConfigCommand,
 ): GatewayInitialConfig {
   return {
-    gatewayId: command.instanceId,
+    gatewayId: command.gatewayId,
     controlCenterEndpoint: "https://center.example.com",
     protocolVersion: "1.0",
     serverTlsRequired: true,
@@ -1111,7 +1111,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: now,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/initial-config?instance_id=gw-001",
+        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-001",
     },
     {
       gatewayId: "gw-002",
@@ -1120,7 +1120,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: null,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/initial-config?instance_id=gw-002",
+        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-002",
     },
     {
       gatewayId: "gw-003",
@@ -1129,7 +1129,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: null,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/initial-config?instance_id=gw-003",
+        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-003",
     },
     {
       gatewayId: "gw-004",
@@ -1138,7 +1138,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: null,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/initial-config?instance_id=gw-004",
+        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-004",
     },
   ];
 }
@@ -1299,7 +1299,7 @@ export async function bindGatewayCustomer(
 export async function fetchGatewayInitialConfig(
   command: GetGatewayInitialConfigCommand,
 ): Promise<ExampleResult<GatewayInitialConfig>> {
-  const path = `/api/v1/admin/gateways/instances/${encodeURIComponent(command.instanceId)}/config`;
+  const path = `/api/v1/admin/gateways/${encodeURIComponent(command.gatewayId)}/config`;
   return fetchOrFallback(path, () => exampleInitialConfig(command)).then(
     async (result) => {
       if (result.source === "real") {
