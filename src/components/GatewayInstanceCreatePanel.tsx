@@ -176,7 +176,7 @@ export function GatewayInstanceCreatePanel() {
                 code={install.cloudImage}
               />
               <CopyBlock
-                label="④ 初始化 HTTPS URL（Gateway 启动后基于此 URL 初始化）"
+                label="④ 初始化 HTTPS URL（宿主侧 wist-gwlinkd 首跑据此接入）"
                 code={install.initUrl}
               />
               <CopyBlock
@@ -185,14 +185,14 @@ export function GatewayInstanceCreatePanel() {
               />
               {install.trustBundlePem ? (
                 <CopyBlock
-                  label="⑥ 控制中心 CA 证书（保存为 control-center.pem）"
+                  label="⑥ 控制中心 CA 证书（CA-S 信任锚）：存为 control-center.pem，并作 gwlinkd 的 trust_bundle"
                   code={install.trustBundlePem}
                   filename="control-center.pem"
                 />
               ) : null}
               <p className={styles.installHint}>
-                Gateway 启动后将携带置备引导 Token 访问初始化 URL，获取
-                config.toml 和注册凭据，完成接入。
+                宿主侧的 wist-gwlinkd 携带置备引导 Token 访问初始化 URL 领取配置；随后在本机生成
+                密钥对、经 register 换取客户端证书（mTLS 长期身份），之后的状态上报与轮换都走该证书。
               </p>
             </div>
           ) : null}

@@ -188,7 +188,8 @@ export function GatewayInstanceDetailPage() {
                       <p className={styles.curlHint}>
                         用置备引导 Token（<code>Authorization</code>）与网关身份
                         （<code>X-Gateway-Identity-Token</code>）验证 Center 接入接口；身份从网关宿主读
-                        （gwlinkd 的 {"<state_dir>/identity"}），Center 不掌握。
+                        （gwlinkd 的 {"<state_dir>/identity"}），Center 不掌握。此步只换回
+                        客户端证书（mTLS）；后续调用不再用 Token。
                       </p>
                     </div>
                     <button
