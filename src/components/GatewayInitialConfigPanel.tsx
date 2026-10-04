@@ -17,7 +17,7 @@ export function GatewayInitialConfigPanel() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     mutation.mutate({
-      instanceId: String(data.get("instanceId") ?? ""),
+      gatewayId: String(data.get("gatewayId") ?? ""),
       requestedBy: String(data.get("requestedBy") ?? ""),
     });
   }
@@ -37,8 +37,8 @@ export function GatewayInitialConfigPanel() {
             </PrimaryButton>
           }
         >
-          <FormField label="实例 ID" hint="例如：inst-7f2a">
-            <TextInput name="instanceId" required placeholder="请输入实例 ID" />
+          <FormField label="网关 ID" hint="例如：gw-001">
+            <TextInput name="gatewayId" required placeholder="请输入网关 ID" />
           </FormField>
           <FormField label="申请者（requested_by）">
             <TextInput name="requestedBy" defaultValue="admin" required />

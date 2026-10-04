@@ -5,6 +5,12 @@ node_modules/
 dist/
 dist-ssr/
 
+# vite cache
+.vite/
+
+# local agent/tooling scratch
+.workbuddy/
+
 # TypeScript incremental build info
 *.tsbuildinfo
 
