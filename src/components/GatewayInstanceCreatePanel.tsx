@@ -74,6 +74,25 @@ function CopyBlock({
   );
 }
 
+/** 从初始化 URL 取控制中心 endpoint（协议+主机+端口）。 */
+function endpointOrigin(initUrl: string): string {
+  try {
+    return new URL(initUrl).origin;
+  } catch {
+    return initUrl;
+  }
+}
+
+/** 拼宿主侧 `wist-gwlinkd` 的 `gwlinkd.toml`（接入物之一）。 */
+function gwlinkdToml(initUrl: string, gatewayId: string): string {
+  return [
+    `control_center_endpoint = "${endpointOrigin(initUrl)}"`,
+    `trust_bundle = "/etc/wist-gwlinkd/control-center.pem"`,
+    `state_dir = "/var/lib/wist-gwlinkd"`,
+    `gateway_id = "${gatewayId}"`,
+  ].join("\n");
+}
+
 /**
  * 提供可按需展开的实例创建流程。
  * 置备引导 Token 始终由 Center 签发，表单只收集实例标识和操作人信息。
@@ -190,8 +209,16 @@ export function GatewayInstanceCreatePanel() {
                   filename="control-center.pem"
                 />
               ) : null}
+              {instance ? (
+                <CopyBlock
+                  label="⑦ 宿主侧 gwlinkd 配置（存为 /etc/wist-gwlinkd/gwlinkd.toml）"
+                  code={gwlinkdToml(install.initUrl, instance.gatewayId)}
+                  filename="gwlinkd.toml"
+                />
+              ) : null}
               <p className={styles.installHint}>
-                宿主侧的 wist-gwlinkd 携带置备引导 Token 访问初始化 URL 领取配置；随后在本机生成
+                宿主侧运行 wist-gwlinkd：首跑用一次性置备 Token
+                （<code>WIST_GWLINKD_BOOTSTRAP_TOKEN=①</code>）访问初始化 URL 领取配置；随后在本机生成
                 密钥对、经 register 换取客户端证书（mTLS 长期身份），之后的状态上报与轮换都走该证书。
               </p>
             </div>
