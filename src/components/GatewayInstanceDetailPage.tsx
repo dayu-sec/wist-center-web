@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { type GatewayInstanceLifecycleState } from "../api";
 import {
+  useCreateGatewayInstance,
   useGatewayInstances,
   useGatewayLifecycle,
   useRotateGatewayLinkToken,
@@ -152,9 +153,16 @@ export function GatewayInstanceDetailPage() {
     isLoading: lifecycleLoading,
   } = useGatewayLifecycle(instance?.gatewayId ?? "");
   const rotate = useRotateGatewayLinkToken();
+  const create = useCreateGatewayInstance();
   const [issued, setIssued] = useState<IssuedLinkToken | null>(null);
   // 数据来自内置示例（后端管理接口未就绪）时，不能签发真实接入券 —— 禁用且说明。
   const instanceIsExample = instancesData?.source === "example";
+
+  function handleCreateInstance() {
+    if (!gatewayId) return;
+    // 创建后实例以 Provisioned 出现；总览刷新（hook 已 invalidate）后本页自动切到详情，可生成接入链接。
+    create.mutate({ gatewayName: gatewayId, requestedBy: "admin" });
+  }
 
   function handleRotateToken() {
     if (!instance) return;
@@ -196,7 +204,22 @@ export function GatewayInstanceDetailPage() {
       {!isLoading && !instancesError && !instance ? (
         <section className={styles.notFound}>
           <h2>未找到该网关实例</h2>
-          <p>实例可能已删除，或当前管理凭证无权查看。</p>
+          <p>
+            该实例尚未创建（或已删除、或当前管理凭证无权查看）。要接入网关，先创建它：
+          </p>
+          {gatewayId ? (
+            <button
+              type="button"
+              className={styles.primaryLink}
+              onClick={handleCreateInstance}
+              disabled={create.isPending || instanceIsExample}
+            >
+              {create.isPending ? "创建中…" : `创建网关实例「${gatewayId}」`}
+            </button>
+          ) : null}
+          {create.error ? (
+            <ErrorBanner>创建失败：{String(create.error)}</ErrorBanner>
+          ) : null}
           <Link to="/instance" className={styles.primaryLink}>
             返回实例列表
           </Link>
