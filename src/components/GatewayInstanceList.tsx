@@ -8,6 +8,7 @@ import {
   lifecycleTone,
   LoadingDots,
 } from "./ui";
+import { ExampleDataTag } from "./GatewayStatusOverviewMetrics";
 import styles from "./GatewayInstanceList.module.css";
 
 /** 按接入阶段展示实例，避免 Center 接入材料与运行监控入口混在同一序列中。 */
@@ -103,6 +104,8 @@ export function GatewayInstanceList() {
           </span>
         </div>
       </div>
+
+      <ExampleDataTag source={data?.source} />
 
       {isLoading && instances.length === 0 ? (
         <div className={styles.feedback}>

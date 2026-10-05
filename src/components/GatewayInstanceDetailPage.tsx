@@ -7,6 +7,7 @@ import {
   useRotateGatewayLinkToken,
 } from "../hooks";
 import { GatewayCustomerBindPanel } from "./GatewayCustomerBindPanel";
+import { ExampleDataTag } from "./GatewayStatusOverviewMetrics";
 import {
   Badge,
   type BadgeTone,
@@ -152,6 +153,8 @@ export function GatewayInstanceDetailPage() {
   } = useGatewayLifecycle(instance?.gatewayId ?? "");
   const rotate = useRotateGatewayLinkToken();
   const [issued, setIssued] = useState<IssuedLinkToken | null>(null);
+  // 数据来自内置示例（后端管理接口未就绪）时，不能签发真实接入券 —— 禁用且说明。
+  const instanceIsExample = instancesData?.source === "example";
 
   function handleRotateToken() {
     if (!instance) return;
@@ -179,6 +182,8 @@ export function GatewayInstanceDetailPage() {
       <Link to="/instance" className={styles.backLink}>
         ← 返回网关管理
       </Link>
+
+      <ExampleDataTag source={instancesData?.source} />
 
       {isLoading && !instance ? <LoadingDots /> : null}
 
@@ -239,11 +244,16 @@ export function GatewayInstanceDetailPage() {
                       type="button"
                       className={styles.generateButton}
                       onClick={handleRotateToken}
-                      disabled={rotate.isPending}
+                      disabled={rotate.isPending || instanceIsExample}
                     >
                       {rotate.isPending ? "生成中…" : "生成/轮换接入券"}
                     </button>
                   </div>
+                  {instanceIsExample ? (
+                    <p className={styles.tokenHint}>
+                      当前是示例数据（后端管理接口未就绪），无法签发真实接入券；请先让后端可达。
+                    </p>
+                  ) : null}
                   {rotate.error ? (
                     <ErrorBanner>
                       生成/轮换接入券失败：{String(rotate.error)}

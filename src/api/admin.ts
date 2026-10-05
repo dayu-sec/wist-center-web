@@ -993,27 +993,6 @@ function exampleGatewayInstance(
   };
 }
 
-function exampleRotatedLinkToken(
-  command: RotateGatewayLinkTokenCommand,
-): AdminRotateGatewayLinkTokenReturned {
-  const gatewayId = command.gatewayId.trim();
-  const initEndpoint = `http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=${gatewayId}`;
-  const linkToken = `link_${Math.random().toString(36).slice(2, 14)}`;
-  return {
-    gatewayId,
-    install: {
-      installCommand: `docker run -d --name wist-gateway-${gatewayId} wist-gateway:latest`,
-      cloudImage: "wist-gateway:latest",
-      initUrl: initEndpoint,
-      linkToken: linkToken,
-      initCurl: `curl -H "Authorization: Bearer ${linkToken}" "${initEndpoint}"`,
-      trustBundlePem: null,
-    },
-    // 短 TTL：示例按 15 分钟给出到期时刻。
-    linkExpiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
-  };
-}
-
 function exampleBinding(
   command: BindGatewayCustomerCommand,
 ): GatewayCustomerBinding {
@@ -1131,7 +1110,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: now,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-001",
+        "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-001",
     },
     {
       gatewayId: "gw-002",
@@ -1140,7 +1119,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: null,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-002",
+        "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-002",
     },
     {
       gatewayId: "gw-003",
@@ -1149,7 +1128,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: null,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-003",
+        "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-003",
     },
     {
       gatewayId: "gw-004",
@@ -1158,7 +1137,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       createdAt: now,
       initializedAt: null,
       initUrl:
-        "http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-004",
+        "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-004",
     },
   ];
 }
@@ -1297,26 +1276,21 @@ export async function rotateGatewayLinkToken(
   command: RotateGatewayLinkTokenCommand,
 ): Promise<ExampleResult<AdminRotateGatewayLinkTokenReturned>> {
   const path = `/api/v1/admin/gateways/${encodeURIComponent(command.gatewayId)}/link-token`;
-  return fetchOrFallback(path, () => exampleRotatedLinkToken(command), {
+  // **刻意不回落示例**：这里签发的是真实凭据（一次性接入券 + CA）。示例券会伪装成真接入物
+  // ——曾因此让「示例实例」页生成出一条看似可用、实则 http/无 CA 的链接。真实失败就让它冒出来。
+  const raw = (await requestJson<any>(path, {
     method: "POST",
     body: JSON.stringify({ requested_by: command.requestedBy }),
-  }).then(async (result) => {
-    if (result.source === "real") {
-      const raw = result.data as any;
-      return {
-        ...result,
-        data: {
-          gatewayId: String(raw.gateway_id ?? command.gatewayId),
-          install: normalizeGatewayInstallInfo(raw.install ?? {}),
-          linkExpiresAt:
-            raw.link_expires_at == null
-              ? null
-              : String(raw.link_expires_at),
-        },
-      };
-    }
-    return result;
-  });
+  })) as any;
+  return {
+    source: "real",
+    data: {
+      gatewayId: String(raw.gateway_id ?? command.gatewayId),
+      install: normalizeGatewayInstallInfo(raw.install ?? {}),
+      linkExpiresAt:
+        raw.link_expires_at == null ? null : String(raw.link_expires_at),
+    },
+  };
 }
 
 export async function bindGatewayCustomer(
