@@ -17,6 +17,23 @@ export interface GatewayStatusView {
   memoryBytes: number | null;
   cpuPercent: number | null;
   lastSeenAt: string;
+  // 富化（见 wist-design edge/gateway-status-report.md）：后端 0.6.1 起上报；老数据为 null。
+  uptimeSeconds: number | null;
+  agentCount: number | null;
+  onlineAgents: number | null;
+  offlineAgents: number | null;
+  lastSeenLagSeconds: number | null;
+  storeBytes: number | null;
+  ingestAcceptedTotal: number | null;
+  ingestRejectedTotal: number | null;
+  lastIngestAt: string | null;
+  memoryTotalBytes: number | null;
+  load1m: number | null;
+  load5m: number | null;
+  load15m: number | null;
+  diskUsagePercent: number | null;
+  diskTotalBytes: number | null;
+  diskAvailableBytes: number | null;
 }
 
 export interface GatewayListView {
@@ -40,6 +57,15 @@ export interface GatewayHistorySample {
   online: number | null;
   memoryBytes: number | null;
   cpuPercent: number | null;
+  /** 富化指标（可选）：老后端 / 老样本可能没有这些序列。 */
+  uptimeSeconds?: number | null;
+  agentCount?: number | null;
+  onlineAgents?: number | null;
+  offlineAgents?: number | null;
+  lastSeenLagSeconds?: number | null;
+  storeBytes?: number | null;
+  load1m?: number | null;
+  diskUsagePercent?: number | null;
 }
 
 /** 网关历史趋势；当前详情页请求最近 1 小时、每分钟一个采样点。 */
@@ -383,6 +409,12 @@ function nullableNumber(payload: any, ...names: string[]): number | null {
   return typeof value === "number" ? value : null;
 }
 
+/** 可空字符串：缺失 / `null` / 空串 → null；否则原样。 */
+function nullableString(payload: any, ...names: string[]): string | null {
+  const value = pick(payload, ...names);
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 function normalizeGatewayStatus(value: unknown): GatewayStatus {
   // 模型 status 为 String，取值域未收紧；异常上报值不击穿整个列表，原样透传（徽标兜底显示离线）。
   if (typeof value === "string" && value.length > 0)
@@ -415,6 +447,46 @@ function normalizeGatewayStatusView(payload: any): GatewayStatusView {
     lastSeenAt: requiredString(
       pick(payload, "last_seen_at", "lastSeenAt"),
       "gateway.lastSeenAt",
+    ),
+    uptimeSeconds: nullableNumber(payload, "uptime_seconds", "uptimeSeconds"),
+    agentCount: nullableNumber(payload, "agent_count", "agentCount"),
+    onlineAgents: nullableNumber(payload, "online_agents", "onlineAgents"),
+    offlineAgents: nullableNumber(payload, "offline_agents", "offlineAgents"),
+    lastSeenLagSeconds: nullableNumber(
+      payload,
+      "last_seen_lag_seconds",
+      "lastSeenLagSeconds",
+    ),
+    storeBytes: nullableNumber(payload, "store_bytes", "storeBytes"),
+    ingestAcceptedTotal: nullableNumber(
+      payload,
+      "ingest_accepted_total",
+      "ingestAcceptedTotal",
+    ),
+    ingestRejectedTotal: nullableNumber(
+      payload,
+      "ingest_rejected_total",
+      "ingestRejectedTotal",
+    ),
+    lastIngestAt: nullableString(payload, "last_ingest_at", "lastIngestAt"),
+    memoryTotalBytes: nullableNumber(
+      payload,
+      "memory_total_bytes",
+      "memoryTotalBytes",
+    ),
+    load1m: nullableNumber(payload, "load_1m", "load1m"),
+    load5m: nullableNumber(payload, "load_5m", "load5m"),
+    load15m: nullableNumber(payload, "load_15m", "load15m"),
+    diskUsagePercent: nullableNumber(
+      payload,
+      "disk_usage_percent",
+      "diskUsagePercent",
+    ),
+    diskTotalBytes: nullableNumber(payload, "disk_total_bytes", "diskTotalBytes"),
+    diskAvailableBytes: nullableNumber(
+      payload,
+      "disk_available_bytes",
+      "diskAvailableBytes",
     ),
   };
 }
@@ -635,6 +707,26 @@ function isoMinutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
 
+/** 富化字段的空值（示例数据用：老后端不带这些）。 */
+const NO_GATEWAY_EXTRAS = {
+  uptimeSeconds: null,
+  agentCount: null,
+  onlineAgents: null,
+  offlineAgents: null,
+  lastSeenLagSeconds: null,
+  storeBytes: null,
+  ingestAcceptedTotal: null,
+  ingestRejectedTotal: null,
+  lastIngestAt: null,
+  memoryTotalBytes: null,
+  load1m: null,
+  load5m: null,
+  load15m: null,
+  diskUsagePercent: null,
+  diskTotalBytes: null,
+  diskAvailableBytes: null,
+};
+
 function exampleGatewayStatusView(): GatewayStatusView[] {
   return [
     {
@@ -646,6 +738,7 @@ function exampleGatewayStatusView(): GatewayStatusView[] {
       memoryBytes: 2 * 1024 ** 3,
       cpuPercent: 35,
       lastSeenAt: isoMinutesAgo(1),
+      ...NO_GATEWAY_EXTRAS,
     },
     {
       gatewayId: "gw-002",
@@ -656,6 +749,7 @@ function exampleGatewayStatusView(): GatewayStatusView[] {
       memoryBytes: 1536 * 1024 ** 2,
       cpuPercent: 68,
       lastSeenAt: isoMinutesAgo(4),
+      ...NO_GATEWAY_EXTRAS,
     },
     {
       gatewayId: "gw-003",
@@ -666,6 +760,7 @@ function exampleGatewayStatusView(): GatewayStatusView[] {
       memoryBytes: 768 * 1024 ** 2,
       cpuPercent: 12,
       lastSeenAt: isoMinutesAgo(138),
+      ...NO_GATEWAY_EXTRAS,
     },
     {
       gatewayId: "gw-004",
@@ -676,6 +771,7 @@ function exampleGatewayStatusView(): GatewayStatusView[] {
       memoryBytes: 2 * 1024 ** 3,
       cpuPercent: 41,
       lastSeenAt: isoMinutesAgo(2),
+      ...NO_GATEWAY_EXTRAS,
     },
     {
       gatewayId: "gw-005",
@@ -686,6 +782,7 @@ function exampleGatewayStatusView(): GatewayStatusView[] {
       memoryBytes: 512 * 1024 ** 2,
       cpuPercent: 5,
       lastSeenAt: isoMinutesAgo(420),
+      ...NO_GATEWAY_EXTRAS,
     },
     {
       gatewayId: "gw-006",
@@ -696,6 +793,7 @@ function exampleGatewayStatusView(): GatewayStatusView[] {
       memoryBytes: 2 * 1024 ** 3,
       cpuPercent: 28,
       lastSeenAt: isoMinutesAgo(0),
+      ...NO_GATEWAY_EXTRAS,
     },
   ];
 }
@@ -754,11 +852,21 @@ function exampleGatewayHistory(
   const baseMemory = (1.4 + (hash % 8) / 10) * 1024 ** 3;
   const samples = Array.from({ length: pointCount + 1 }, (_, index) => {
     const phase = (index + (hash % 17)) / 6;
+    const agentCount = 3 + (hash % 5);
+    const offlineAgents = index === Math.floor(pointCount * 0.28) ? 1 : 0;
     return {
       at: end - (pointCount - index) * stepSeconds,
       online: index === Math.floor(pointCount * 0.28) ? 0 : 1,
       memoryBytes: baseMemory + Math.sin(phase * 0.7) * 110 * 1024 ** 2,
       cpuPercent: 34 + Math.sin(phase) * 11 + Math.cos(phase * 0.35) * 5,
+      uptimeSeconds: (index + 1) * stepSeconds,
+      agentCount,
+      onlineAgents: agentCount - offlineAgents,
+      offlineAgents,
+      lastSeenLagSeconds: 1 + Math.round(Math.abs(Math.sin(phase * 0.5)) * 4),
+      storeBytes: 900 * 1024 ** 2 + Math.sin(phase * 0.4) * 120 * 1024 ** 2,
+      load1m: 1.2 + Math.sin(phase * 0.6) * 0.8,
+      diskUsagePercent: 58 + Math.sin(phase * 0.2) * 6,
     };
   });
   return { gatewayId, window, stepSeconds, samples };
@@ -785,6 +893,22 @@ function normalizeGatewayHistory(
           online: nullableNumber(item, "online"),
           memoryBytes: nullableNumber(item, "memory_bytes", "memoryBytes"),
           cpuPercent: nullableNumber(item, "cpu_percent", "cpuPercent"),
+          uptimeSeconds: nullableNumber(item, "uptime_seconds", "uptimeSeconds"),
+          agentCount: nullableNumber(item, "agent_count", "agentCount"),
+          onlineAgents: nullableNumber(item, "online_agents", "onlineAgents"),
+          offlineAgents: nullableNumber(item, "offline_agents", "offlineAgents"),
+          lastSeenLagSeconds: nullableNumber(
+            item,
+            "last_seen_lag_seconds",
+            "lastSeenLagSeconds",
+          ),
+          storeBytes: nullableNumber(item, "store_bytes", "storeBytes"),
+          load1m: nullableNumber(item, "load_1m", "load1m"),
+          diskUsagePercent: nullableNumber(
+            item,
+            "disk_usage_percent",
+            "diskUsagePercent",
+          ),
         };
       })
     : [];

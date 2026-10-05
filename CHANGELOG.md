@@ -5,9 +5,12 @@
 
 > 说明：0.1.3 之前未单独维护本文件；自 0.1.3 起记录。
 
-## [Unreleased]
+## [0.1.5-alpha] - 2026-10-05
 
 ### 变更
+- **网关详情页趋势图扩展**：「最近 1 小时」在 CPU / 内存 / 在线之外，新增**运行时长 / 在线 Agent /
+  上报时延 / 存储 / 负载 1m / 磁盘**趋势行（对齐后端富化指标进 VictoriaMetrics）；**该序列有数据才显示**
+  （老数据 / Agent 紧凑图不出现空行）。
 - **dev 代理自动带 admin token**：开发态 vite 代理从中心配置（`~/.wist-center/wist-center.toml`，可用
   `WIST_CENTER_CONFIG` 覆盖）读 admin token，在请求**未带** `Authorization` 时补上——前端不再因缺 token 而
   静默回落到「示例数据」（假实例 / 假接入链接）。token 不进前端包；已手填的优先（不覆盖）。

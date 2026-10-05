@@ -28,6 +28,19 @@ export function formatPercent(value: number | null | undefined): string {
   return `${value.toFixed(1)}%`;
 }
 
+/** 秒数 → 可读时长（天/时/分/秒）；可空。 */
+export function formatDuration(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  if (value <= 0) return "0 秒";
+  const days = Math.floor(value / 86_400);
+  const hours = Math.floor((value % 86_400) / 3_600);
+  const minutes = Math.floor((value % 3_600) / 60);
+  if (days > 0) return `${days} 天 ${hours} 小时`;
+  if (hours > 0) return `${hours} 小时 ${minutes} 分`;
+  if (minutes > 0) return `${minutes} 分`;
+  return `${value} 秒`;
+}
+
 /** 实例生命周期状态的中文标签。 */
 export function lifecycleLabel(state: string): string {
   switch (state) {

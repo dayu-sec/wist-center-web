@@ -10,6 +10,7 @@ import {
 import {
   Badge,
   formatBytes,
+  formatDuration,
   formatPercent,
   formatRelativeTime,
   lifecycleLabel,
@@ -99,6 +100,41 @@ export function GatewayDetailPage() {
               <div className={styles.metric}>
                 <div className={styles.metricLabel}>最后上报</div>
                 <div>{formatRelativeTime(gateway.lastSeenAt)}</div>
+              </div>
+              <div className={styles.metric}>
+                <div className={styles.metricLabel}>运行时长</div>
+                <div>{formatDuration(gateway.uptimeSeconds)}</div>
+              </div>
+              <div className={styles.metric}>
+                <div className={styles.metricLabel}>Agent 在线 / 离线</div>
+                <div>
+                  {gateway.onlineAgents ?? "—"} / {gateway.offlineAgents ?? "—"}（共
+                  {" "}
+                  {gateway.agentCount ?? "—"}）
+                </div>
+              </div>
+              <div className={styles.metric}>
+                <div className={styles.metricLabel}>存储</div>
+                <div>{formatBytes(gateway.storeBytes)}</div>
+              </div>
+              <div className={styles.metric}>
+                <div className={styles.metricLabel}>数据面接收（累计）</div>
+                <div>
+                  收 {gateway.ingestAcceptedTotal ?? "—"} / 拒{" "}
+                  {gateway.ingestRejectedTotal ?? "—"}
+                </div>
+              </div>
+              <div className={styles.metric}>
+                <div className={styles.metricLabel}>主机内存</div>
+                <div>{formatBytes(gateway.memoryTotalBytes)}</div>
+              </div>
+              <div className={styles.metric}>
+                <div className={styles.metricLabel}>磁盘</div>
+                <div>{formatPercent(gateway.diskUsagePercent)}</div>
+              </div>
+              <div className={styles.metric}>
+                <div className={styles.metricLabel}>负载（1m）</div>
+                <div>{gateway.load1m === null ? "—" : gateway.load1m.toFixed(2)}</div>
               </div>
               <GatewayHistoryChart
                 history={historyData?.data}

@@ -1,5 +1,5 @@
 import type { GatewayHistory, GatewayHistorySample } from "../api";
-import { formatBytes, formatPercent } from "./ui";
+import { formatBytes, formatDuration, formatPercent } from "./ui";
 import styles from "./GatewayHistoryChart.module.css";
 
 interface GatewayHistoryChartProps {
@@ -10,7 +10,9 @@ interface GatewayHistoryChartProps {
   compact?: boolean;
 }
 
-type SampleValue = (sample: GatewayHistorySample) => number | null;
+type SampleValue = (
+  sample: GatewayHistorySample,
+) => number | null | undefined;
 
 const VIEW_WIDTH = 240;
 const VIEW_HEIGHT = 30;
@@ -60,6 +62,7 @@ export function GatewayHistoryChart({
       </div>
 
       <TrendRow
+        id="cpu"
         label="CPU"
         color="var(--series-1)"
         value={formatPercent(
@@ -69,6 +72,7 @@ export function GatewayHistoryChart({
         valueOf={(sample) => sample.cpuPercent}
       />
       <TrendRow
+        id="mem"
         label="内存"
         color="var(--series-3)"
         value={formatBytes(
@@ -77,6 +81,75 @@ export function GatewayHistoryChart({
         samples={samples}
         valueOf={(sample) => sample.memoryBytes}
       />
+      {/* 富化趋势：只在样本里有这条序列时渲染，老数据/agent 紧凑图不显示空行。 */}
+      {hasData(samples, (sample) => sample.uptimeSeconds) ? (
+        <TrendRow
+          id="uptime"
+          label="运行时长"
+          color="var(--series-2)"
+          value={formatDuration(
+            latestValue(samples, (sample) => sample.uptimeSeconds),
+          )}
+          samples={samples}
+          valueOf={(sample) => sample.uptimeSeconds}
+        />
+      ) : null}
+      {hasData(samples, (sample) => sample.onlineAgents) ? (
+        <TrendRow
+          id="agents"
+          label="在线 Agent"
+          color="var(--series-4)"
+          value={formatAgentCount(samples)}
+          samples={samples}
+          valueOf={(sample) => sample.onlineAgents}
+        />
+      ) : null}
+      {hasData(samples, (sample) => sample.lastSeenLagSeconds) ? (
+        <TrendRow
+          id="lag"
+          label="上报时延"
+          color="var(--series-5)"
+          value={formatSeconds(
+            latestValue(samples, (sample) => sample.lastSeenLagSeconds),
+          )}
+          samples={samples}
+          valueOf={(sample) => sample.lastSeenLagSeconds}
+        />
+      ) : null}
+      {hasData(samples, (sample) => sample.storeBytes) ? (
+        <TrendRow
+          id="store"
+          label="存储"
+          color="var(--series-6)"
+          value={formatBytes(
+            latestValue(samples, (sample) => sample.storeBytes),
+          )}
+          samples={samples}
+          valueOf={(sample) => sample.storeBytes}
+        />
+      ) : null}
+      {hasData(samples, (sample) => sample.load1m) ? (
+        <TrendRow
+          id="load"
+          label="负载 1m"
+          color="var(--series-2)"
+          value={formatLoad(latestValue(samples, (sample) => sample.load1m))}
+          samples={samples}
+          valueOf={(sample) => sample.load1m}
+        />
+      ) : null}
+      {hasData(samples, (sample) => sample.diskUsagePercent) ? (
+        <TrendRow
+          id="disk"
+          label="磁盘"
+          color="var(--series-3)"
+          value={formatPercent(
+            latestValue(samples, (sample) => sample.diskUsagePercent),
+          )}
+          samples={samples}
+          valueOf={(sample) => sample.diskUsagePercent}
+        />
+      ) : null}
       <div className={styles.availabilityRow}>
         <span className={styles.rowLabel}>在线</span>
         <div className={styles.availability} aria-label="最近 1 小时在线状态">
@@ -110,12 +183,14 @@ export function GatewayHistoryChart({
  * —— 只有折线时几十个采样点会挤成一根线，读不出量级。
  */
 function TrendRow({
+  id,
   label,
   value,
   color,
   samples,
   valueOf,
 }: {
+  id: string;
   label: string;
   value: string;
   color: string;
@@ -123,7 +198,7 @@ function TrendRow({
   valueOf: SampleValue;
 }) {
   const points = buildPoints(samples, valueOf);
-  const gradientId = `gw-trend-${label === "CPU" ? "cpu" : "mem"}`;
+  const gradientId = `gw-trend-${id}`;
   const area = points
     ? `M ${points[0].x},${VIEW_HEIGHT} ` +
       points.map((point) => `L ${point.x},${point.y}`).join(" ") +
@@ -171,7 +246,7 @@ function buildPoints(
 ): { x: number; y: number }[] {
   const raw = samples.flatMap((sample) => {
     const value = valueOf(sample);
-    return value === null ? [] : [{ at: sample.at, value }];
+    return value === null || value === undefined ? [] : [{ at: sample.at, value }];
   });
   if (raw.length === 0) return [];
   const minAt = raw[0].at;
@@ -199,9 +274,38 @@ function latestValue(
 ): number | null {
   for (let index = samples.length - 1; index >= 0; index -= 1) {
     const value = valueOf(samples[index]);
-    if (value !== null) return value;
+    if (value !== null && value !== undefined) return value;
   }
   return null;
+}
+
+/** 样本里是否至少有一个非空值；没有就整行不渲染（老数据缺序列）。 */
+function hasData(
+  samples: GatewayHistorySample[],
+  valueOf: SampleValue,
+): boolean {
+  return samples.some((sample) => {
+    const value = valueOf(sample);
+    return value !== null && value !== undefined;
+  });
+}
+
+/** 在线 Agent 显示为「在线 / 总数」。 */
+function formatAgentCount(samples: GatewayHistorySample[]): string {
+  const online = latestValue(samples, (sample) => sample.onlineAgents);
+  const total = latestValue(samples, (sample) => sample.agentCount);
+  if (online === null && total === null) return "—";
+  return `${online ?? "—"} / ${total ?? "—"}`;
+}
+
+function formatSeconds(value: number | null): string {
+  if (value === null) return "—";
+  if (value >= 60) return `${(value / 60).toFixed(1)} 分`;
+  return `${value.toFixed(0)} 秒`;
+}
+
+function formatLoad(value: number | null): string {
+  return value === null ? "—" : value.toFixed(2);
 }
 
 function formatSampleTime(at?: number): string {
