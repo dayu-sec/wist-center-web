@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { type GatewayInstanceLifecycleState } from "../api";
 import {
-  readGatewayInitCurl,
-  type GatewayInstanceLifecycleState,
-} from "../api";
-import { useGatewayInstances, useGatewayLifecycle } from "../hooks";
+  useGatewayInstances,
+  useGatewayLifecycle,
+  useRotateGatewayLinkToken,
+} from "../hooks";
 import { GatewayCustomerBindPanel } from "./GatewayCustomerBindPanel";
 import {
   Badge,
@@ -30,7 +31,108 @@ function lifecycleTone(state: GatewayInstanceLifecycleState): BadgeTone {
   }
 }
 
-/** 展示未上线网关实例的接入材料、生命周期和下一步部署动作。 */
+/** 从初始化 URL 取控制中心 endpoint（协议+主机+端口）。 */
+function endpointOrigin(initUrl: string): string {
+  try {
+    return new URL(initUrl).origin;
+  } catch {
+    return initUrl;
+  }
+}
+
+/** 拼宿主侧 `wist-gwlinkd` 的 `gwlinkd.toml`（接入物之一）。 */
+function gwlinkdToml(initUrl: string, gatewayId: string): string {
+  return [
+    `control_center_endpoint = "${endpointOrigin(initUrl)}"`,
+    `trust_bundle = "/etc/wist-gwlinkd/control-center.pem"`,
+    `state_dir = "/var/lib/wist-gwlinkd"`,
+    `gateway_id = "${gatewayId}"`,
+  ].join("\n");
+}
+
+/** 代码块：展示 + 复制（可选下载）。 */
+function CodeBlock({
+  label,
+  code,
+  filename,
+  hint,
+}: {
+  label: string;
+  code: string;
+  filename?: string;
+  hint?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // 剪贴板不可用时保留可选中的原始文本。
+    }
+  }
+
+  function handleDownload() {
+    if (!filename) return;
+    const blobUrl = URL.createObjectURL(
+      new Blob([code], { type: "text/plain" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = blobUrl;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(blobUrl);
+  }
+
+  return (
+    <div className={styles.curlBlock}>
+      <div className={styles.curlHeader}>
+        <div>
+          <span className={styles.infoLabel}>{label}</span>
+          {hint ? <p className={styles.curlHint}>{hint}</p> : null}
+        </div>
+        <div>
+          {filename ? (
+            <button
+              type="button"
+              className={styles.curlCopyButton}
+              onClick={handleDownload}
+            >
+              下载
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={styles.curlCopyButton}
+            onClick={handleCopy}
+          >
+            {copied ? "已复制" : "复制"}
+          </button>
+        </div>
+      </div>
+      <pre className={styles.curlCode}>{code}</pre>
+    </div>
+  );
+}
+
+/** 已签发的一次性接入券及随附接入物（仅本页内存持有，刷新即丢）。 */
+interface IssuedLinkToken {
+  linkToken: string;
+  initUrl: string;
+  trustBundlePem: string | null;
+  expiresAt: string | null;
+}
+
+/**
+ * 「连接 Gateway」：把 Gateway 接入上级控制中心。
+ *
+ * 设计（`gateway-secure-registration.md` §3/§6/§8）：接入凭据是一张**一次性、短命**的接入券，
+ * 明文**只在 Center 页面一次性展示**（刷新即丢）；Center 只存 hash，**再取只能「生成/轮换」**
+ * （旧券同时作废）。创建实例**不**交付凭据。宿主侧 `wist-gwlinkd` 用「接入券 + Center 地址」
+ * 发起 `link-upstream → register`，换回客户端证书（mTLS 长期身份）。
+ */
 export function GatewayInstanceDetailPage() {
   const { gatewayId = "" } = useParams();
   const {
@@ -38,10 +140,6 @@ export function GatewayInstanceDetailPage() {
     error: instancesError,
     isLoading,
   } = useGatewayInstances();
-  const [copied, setCopied] = useState(false);
-  const [curlCopied, setCurlCopied] = useState(false);
-  const [gatewayToken, setGatewayToken] = useState("");
-  const [initCurl, setInitCurl] = useState<string | null>(null);
   const instance = instancesData?.data.find(
     (item) => item.gatewayId === gatewayId,
   );
@@ -50,51 +148,47 @@ export function GatewayInstanceDetailPage() {
     error: lifecycleError,
     isLoading: lifecycleLoading,
   } = useGatewayLifecycle(instance?.gatewayId ?? "");
-  const initEndpoint =
+  const rotate = useRotateGatewayLinkToken();
+  const [issued, setIssued] = useState<IssuedLinkToken | null>(null);
+  const [addressCopied, setAddressCopied] = useState(false);
+
+  const initUrl =
+    issued?.initUrl ??
     instance?.initUrl ??
     `/api/v1/gateway/link-upstream?gateway_id=${encodeURIComponent(gatewayId)}`;
-  // init_url 不携带凭证（token 不进 URL），凭证走 config.toml / Authorization Header。
-  const generatedInitUrl = initEndpoint;
-  const initUrl = generatedInitUrl;
-  const displayInitCurl =
-    initCurl ??
-    `curl -H "Authorization: Bearer <置备引导 Token>" -H "X-Gateway-Identity-Token: <网关身份 ident_>" "${initEndpoint.split("#", 1)[0]}"`;
 
-  useEffect(() => {
-    setInitCurl(readGatewayInitCurl(gatewayId));
-  }, [gatewayId]);
+  function handleRotateToken() {
+    if (!instance) return;
+    rotate.mutate(
+      { gatewayId: instance.gatewayId, requestedBy: "admin" },
+      {
+        onSuccess: (result) => {
+          const install = result.data.install;
+          setIssued({
+            linkToken: install.linkToken,
+            initUrl: install.initUrl,
+            trustBundlePem: install.trustBundlePem,
+            expiresAt: result.data.linkExpiresAt,
+          });
+        },
+      },
+    );
+  }
 
-  async function copyInitUrl() {
+  async function copyAddress() {
     try {
       await navigator.clipboard.writeText(initUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      setAddressCopied(true);
+      window.setTimeout(() => setAddressCopied(false), 1500);
     } catch {
-      // 浏览器禁用剪贴板时保留可选中的 URL，不阻断部署接入流程。
+      // 剪贴板不可用时保留可选中的 URL。
     }
-  }
-
-  async function copyInitCurl() {
-    try {
-      await navigator.clipboard.writeText(displayInitCurl);
-      setCurlCopied(true);
-      window.setTimeout(() => setCurlCopied(false), 1500);
-    } catch {
-      // 剪贴板不可用时保留可选中的命令文本。
-    }
-  }
-
-  function handleGenerateInitUrl() {
-    if (!gatewayToken.trim()) return;
-    setInitCurl(
-      `curl -H "Authorization: Bearer ${gatewayToken.trim()}" -H "X-Gateway-Identity-Token: <网关身份 ident_>" "${initEndpoint.split("#", 1)[0]}"`,
-    );
   }
 
   return (
     <PageShell
-      title={instance ? `实例 ${instance.gatewayId}` : "实例详情"}
-      summary="查看未上线实例的部署接入材料与生命周期；Gateway 初始化页面位于网关自身管理台。"
+      title={instance ? `连接 Gateway · ${instance.gatewayId}` : "连接 Gateway"}
+      summary="生成一次性接入券并交给宿主侧的 wist-gwlinkd：它以「接入券 + Center 地址」接入上级控制中心，随后换回客户端证书。"
     >
       <Link to="/instance" className={styles.backLink}>
         ← 返回网关管理
@@ -134,109 +228,94 @@ export function GatewayInstanceDetailPage() {
 
           <section className={styles.card}>
             <header className={styles.cardHeader}>
-              <h2 className={styles.cardTitle}>Gateway 接入材料</h2>
+              <h2 className={styles.cardTitle}>接入券</h2>
               <p className={styles.cardSubtitle}>
-                这些材料由 Center 生成，供 Gateway 部署后访问控制中心并完成首次接入。
+                接入券由 Center 签发，**一次性、短命**：明文只在本页展示一次（刷新即丢），
+                再取只能「生成/轮换」（旧券同时作废）。
               </p>
             </header>
-            <div className={styles.accessGrid}>
-              <div className={styles.endpointColumn}>
-                <div className={styles.tokenBuilder}>
-                  <div>
-                    <span className={styles.infoLabel}>置备引导 Token（bootstrap）</span>
-                    <p className={styles.tokenHint}>
-                      创建实例时由 Center 一次性下发（<code>boot_…</code>）；填在下框生成 Center
-                      接入命令的 <code>Authorization</code>。不过期，但置备成功（被消费）即失效。
-                    </p>
-                  </div>
-                  <div className={styles.tokenRow}>
-                    <input
-                      className={styles.tokenInput}
-                      type="password"
-                      value={gatewayToken}
-                      onChange={(event) => setGatewayToken(event.target.value)}
-                      placeholder="输入置备引导 Token（boot_…）"
-                      autoComplete="off"
+
+            <div className={styles.endpointColumn}>
+              <div className={styles.tokenBuilder}>
+                <div>
+                  <span className={styles.infoLabel}>生成 / 轮换接入券</span>
+                  <p className={styles.tokenHint}>
+                    生成一张新的接入券并把「Center 接入地址 + CA 信任锚 + gwlinkd 配置」一并交给你。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={styles.generateButton}
+                  onClick={handleRotateToken}
+                  disabled={rotate.isPending}
+                >
+                  {rotate.isPending ? "生成中…" : "生成/轮换接入券"}
+                </button>
+              </div>
+
+              {rotate.error ? (
+                <ErrorBanner>
+                  生成/轮换接入券失败：{String(rotate.error)}
+                </ErrorBanner>
+              ) : null}
+
+              <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>Center 接入地址</span>
+                <div className={styles.urlRow}>
+                  <code className={styles.url}>{initUrl}</code>
+                  <button
+                    type="button"
+                    className={styles.copyButton}
+                    onClick={copyAddress}
+                  >
+                    {addressCopied ? "已复制" : "复制"}
+                  </button>
+                </div>
+              </div>
+
+              {issued ? (
+                <>
+                  <CodeBlock
+                    label="接入券（一次性接入凭据）"
+                    code={issued.linkToken}
+                    hint={
+                      issued.expiresAt
+                        ? `仅本页显示一次；有效期至 ${formatDateTime(issued.expiresAt)}，过期或刷新后请重新轮换。`
+                        : "仅本页显示一次；刷新后请重新轮换。"
+                    }
+                  />
+                  {issued.trustBundlePem ? (
+                    <CodeBlock
+                      label="控制中心 CA 信任锚（存为 control-center.pem）"
+                      code={issued.trustBundlePem}
+                      filename="control-center.pem"
+                      hint="宿主侧 gwlinkd 以此校验 Center 的服务器证书（CA-S）。"
                     />
-                    <button
-                      type="button"
-                      className={styles.generateButton}
-                      onClick={handleGenerateInitUrl}
-                      disabled={!gatewayToken.trim()}
-                    >
-                      生成接入命令
-                    </button>
-                  </div>
-                </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Center 接入 URL</span>
-                  <div className={styles.urlRow}>
-                    <code className={styles.url}>{initUrl}</code>
-                    <button
-                      type="button"
-                      className={styles.copyButton}
-                      onClick={copyInitUrl}
-                    >
-                      {copied ? "已复制" : "复制"}
-                    </button>
-                  </div>
-                </div>
-                <div className={styles.curlBlock}>
-                  <div className={styles.curlHeader}>
-                    <div>
-                        <span className={styles.infoLabel}>Center 接入 curl</span>
-                      <p className={styles.curlHint}>
-                        用置备引导 Token（<code>Authorization</code>）与网关身份
-                        （<code>X-Gateway-Identity-Token</code>）验证 Center 接入接口；身份从网关宿主读
-                        （gwlinkd 的 {"<state_dir>/identity"}），Center 不掌握。此步只换回
-                        客户端证书（mTLS）；后续调用不再用 Token。
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.curlCopyButton}
-                      onClick={copyInitCurl}
-                    >
-                      {curlCopied ? "已复制" : "复制命令"}
-                    </button>
-                  </div>
-                  <pre className={styles.curlCode}>{displayInitCurl}</pre>
-                  {!initCurl ? (
-                    <p className={styles.curlPlaceholder}>
-                      当前页面没有保存创建回执，请填入置备引导 Token 生成完整命令。
-                    </p>
                   ) : null}
-                </div>
-              </div>
-              <div className={styles.metadataColumn}>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>实例 ID</span>
-                  <strong>{instance.instanceId || "待首次上报生成"}</strong>
-                </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>创建时间</span>
-                  <strong>{formatDateTime(instance.createdAt)}</strong>
-                </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>初始化完成</span>
-                  <strong>
-                    {instance.initializedAt
-                      ? formatDateTime(instance.initializedAt)
-                      : "尚未完成"}
-                  </strong>
-                </div>
-              </div>
+                  <CodeBlock
+                    label="宿主侧 gwlinkd 配置（存为 /etc/wist-gwlinkd/gwlinkd.toml）"
+                    code={gwlinkdToml(initUrl, instance.gatewayId)}
+                    filename="gwlinkd.toml"
+                  />
+                  <CodeBlock
+                    label="宿主侧运行 wist-gwlinkd（首跑用它接入）"
+                    code={`WIST_GWLINKD_LINK_TOKEN=${issued.linkToken} wist-gwlinkd run`}
+                    hint="首跑：link-upstream（出示接入券）→ register（换回客户端证书）；之后走 mTLS。"
+                  />
+                </>
+              ) : (
+                <p className={styles.curlPlaceholder}>
+                  尚未生成接入券 —— 点「生成/轮换接入券」即可拿到一次性接入券与全部接入物。
+                </p>
+              )}
             </div>
-            <p className={styles.hint}>
-              Gateway 初始化页面属于网关自身管理台；本页只保存 Center 侧实例接入材料，不承载 Gateway 初始化流程。
-            </p>
           </section>
 
           <section className={styles.card}>
             <header className={styles.cardHeader}>
-              <h2 className={styles.cardTitle}>生命周期</h2>
+              <h2 className={styles.cardTitle}>接入进度</h2>
               <p className={styles.cardSubtitle}>
-                实例从创建到首次上线的状态变化记录。
+                待接入 → 已出示接入券（Initializing）→ 已上线（Running）。状态由 Center 侧生命周期记录。
               </p>
             </header>
             <div className={styles.timeline}>

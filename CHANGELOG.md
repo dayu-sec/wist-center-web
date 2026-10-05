@@ -5,6 +5,16 @@
 
 > 说明：0.1.3 之前未单独维护本文件；自 0.1.3 起记录。
 
+## [Unreleased]
+
+### 变更
+- **「连接 Gateway」对齐设计**：创建回执**不再给接入凭据/接入物**（只给实例）；接入统一收敛到实例详情页
+  「连接 Gateway」——「生成/轮换接入券」产出**一次性、短命**的接入券，并一次性展示 Center 接入地址、
+  CA 信任锚、`gwlinkd.toml` 与宿主启动命令（刷新即丢；再取即轮换），同时展示接入券**有效期**。
+- **接入券改名（bootstrap → link）**：Admin API `rotateGatewaySetupToken` → `rotateGatewayLinkToken`，
+  路由 `…/setup-token` → `…/link-token`，字段 `setupToken` / `bootstrapExpiresAt` → `linkToken` / `linkExpiresAt`；
+  宿主侧启动命令改为 `WIST_GWLINKD_LINK_TOKEN=… wist-gwlinkd run`。
+
 ## [0.1.3-alpha] - 2026-10-04
 
 ### 变更

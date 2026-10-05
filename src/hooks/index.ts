@@ -21,12 +21,14 @@ import {
   getAdminApiToken,
   publishWistAgentd,
   publishWarpGateWay,
+  rotateGatewayLinkToken,
   type ApproveUpgradePlanCommand,
   type BindGatewayCustomerCommand,
   type CreateGatewayInstanceCommand,
   type CreateUpgradePlanCommand,
   type GetGatewayInitialConfigCommand,
   type PublishReleaseCommand,
+  type RotateGatewayLinkTokenCommand,
 } from "../api";
 
 // 当 Admin Token 变化时触发重渲染，使查询能立即从禁用切到启用。
@@ -226,6 +228,17 @@ export function useBindGatewayCustomer() {
   return useMutation({
     mutationFn: (command: BindGatewayCustomerCommand) =>
       bindGatewayCustomer(command),
+  });
+}
+
+/** 生成/轮换一次性接入券（明文仅返回一次，由调用方立即展示）。 */
+export function useRotateGatewayLinkToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: RotateGatewayLinkTokenCommand) =>
+      rotateGatewayLinkToken(command),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["gateway-instances"] }),
   });
 }
 

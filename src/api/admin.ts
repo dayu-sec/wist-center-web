@@ -93,18 +93,25 @@ export interface GatewayInstallInfo {
   installCommand: string;
   cloudImage: string;
   initUrl: string;
-  /** Center 创建实例时签发的一次性置备引导 Token，仅在创建回执中交付。 */
-  setupToken: string;
-  /** 服务端生成的 curl 验证命令（Bearer 使用一次性置备引导 Token）。 */
+  /** Center 创建实例时签发的一次性接入券，仅在创建回执中交付。 */
+  linkToken: string;
+  /** 服务端生成的 curl 验证命令（Bearer 使用一次性接入券）。 */
   initCurl: string;
   /** 控制中心 CA 信任证书；未启用 TLS 时为空。 */
   trustBundlePem: string | null;
 }
 
-/** 创建网关实例返回：实例视图 + 安装指引（Gateway 启动后基于 initUrl 初始化）。 */
+/** 创建网关实例返回：**仅实例视图**。接入凭据不在 create 响应里交付（设计 §8）。 */
 export interface AdminCreateGatewayInstanceReturned {
   instance: GatewayInstance;
+}
+
+/** 生成/轮换接入券 返回：新的安装指引（含一次性明文 linkToken）+ 到期时刻。 */
+export interface AdminRotateGatewayLinkTokenReturned {
+  gatewayId: string;
   install: GatewayInstallInfo;
+  /** 接入券到期时刻（RFC3339）；**短 TTL**，过期需重新生成/轮换。 */
+  linkExpiresAt: string | null;
 }
 
 /** 网关生命周期一次状态转变记录（过程历史）。 */
@@ -183,6 +190,11 @@ export interface GlobalPolicyDispatch {
 
 export interface CreateGatewayInstanceCommand {
   gatewayName: string;
+  requestedBy: string;
+}
+
+export interface RotateGatewayLinkTokenCommand {
+  gatewayId: string;
   requestedBy: string;
 }
 
@@ -446,9 +458,9 @@ function normalizeGatewayInstallInfo(payload: any): GatewayInstallInfo {
       pick(payload, "init_url", "initUrl"),
       "install.initUrl",
     ),
-    setupToken: requiredString(
-      pick(payload, "setup_token", "setupToken"),
-      "install.setupToken",
+    linkToken: requiredString(
+      pick(payload, "link_token", "linkToken"),
+      "install.linkToken",
     ),
     initCurl: requiredString(
       pick(payload, "init_curl", "initCurl"),
@@ -970,11 +982,6 @@ function exampleGatewayInstance(
   command: CreateGatewayInstanceCommand,
 ): AdminCreateGatewayInstanceReturned {
   const gatewayId = command.gatewayName.trim();
-  const initEndpoint = `http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=${gatewayId}`;
-  // 示例数据也模拟 Center 自动签发，避免前端重新承担凭据输入职责。
-  const bootstrapToken = `boot_${Math.random().toString(36).slice(2, 14)}`;
-  // init_url 不携带凭证（token 不进 URL），凭证走 config.toml / Authorization Header。
-  const initUrl = initEndpoint;
   return {
     instance: {
       gatewayId,
@@ -983,14 +990,27 @@ function exampleGatewayInstance(
       createdAt: new Date().toISOString(),
       initializedAt: null,
     },
+  };
+}
+
+function exampleRotatedLinkToken(
+  command: RotateGatewayLinkTokenCommand,
+): AdminRotateGatewayLinkTokenReturned {
+  const gatewayId = command.gatewayId.trim();
+  const initEndpoint = `http://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=${gatewayId}`;
+  const linkToken = `link_${Math.random().toString(36).slice(2, 14)}`;
+  return {
+    gatewayId,
     install: {
-      installCommand: `docker run -d --name wist-gateway-${gatewayId} -e WIST_GATEWAY_INIT_URL="${initUrl}" -e WIST_GATEWAY_BOOTSTRAP_TOKEN="${bootstrapToken}" wist-gateway:latest`,
+      installCommand: `docker run -d --name wist-gateway-${gatewayId} wist-gateway:latest`,
       cloudImage: "wist-gateway:latest",
-      initUrl,
-      setupToken: bootstrapToken,
-      initCurl: `curl -H "Authorization: Bearer ${bootstrapToken}" "${initEndpoint}"`,
+      initUrl: initEndpoint,
+      linkToken: linkToken,
+      initCurl: `curl -H "Authorization: Bearer ${linkToken}" "${initEndpoint}"`,
       trustBundlePem: null,
     },
+    // 短 TTL：示例按 15 分钟给出到期时刻。
+    linkExpiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
   };
 }
 
@@ -1266,7 +1286,32 @@ export async function createGatewayInstance(
         ...result,
         data: {
           instance: normalizeGatewayInstance(raw.instance ?? raw),
+        },
+      };
+    }
+    return result;
+  });
+}
+
+export async function rotateGatewayLinkToken(
+  command: RotateGatewayLinkTokenCommand,
+): Promise<ExampleResult<AdminRotateGatewayLinkTokenReturned>> {
+  const path = `/api/v1/admin/gateways/${encodeURIComponent(command.gatewayId)}/link-token`;
+  return fetchOrFallback(path, () => exampleRotatedLinkToken(command), {
+    method: "POST",
+    body: JSON.stringify({ requested_by: command.requestedBy }),
+  }).then(async (result) => {
+    if (result.source === "real") {
+      const raw = result.data as any;
+      return {
+        ...result,
+        data: {
+          gatewayId: String(raw.gateway_id ?? command.gatewayId),
           install: normalizeGatewayInstallInfo(raw.install ?? {}),
+          linkExpiresAt:
+            raw.link_expires_at == null
+              ? null
+              : String(raw.link_expires_at),
         },
       };
     }
