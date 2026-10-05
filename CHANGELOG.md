@@ -8,12 +8,12 @@
 ## [Unreleased]
 
 ### 变更
-- **「连接 Gateway」对齐设计**：创建回执**不再给接入凭据/接入物**（只给实例）；接入统一收敛到实例详情页
-  「连接 Gateway」——「生成/轮换接入券」产出**一次性、短命**的接入券，并一次性展示 Center 接入地址、
-  CA 信任锚、`gwlinkd.toml` 与宿主启动命令（刷新即丢；再取即轮换），同时展示接入券**有效期**。
+- **「连接 Gateway」对齐新流程**：创建回执**不再给接入凭据/接入物**（只给实例）；接入统一收敛到实例详情页
+  「连接 Gateway」——页面按**两步**重排：① 生成/轮换**一次性、短命**的接入券（刷新即丢，再取即轮换，并显示有效期）；
+  ② 生成**一条接入链接**（含中心地址 + 接入券 + CA 信任锚）交给你，粘到**本机网关**的「链接上级」页。不再展示 `gwlinkd.toml`
+  与宿主 CLI 启动命令 —— 接入由宿主侧 `wist-gwlinkd` 环回网关拉取接入物后自动完成（link-upstream → register）。
 - **接入券改名（bootstrap → link）**：Admin API `rotateGatewaySetupToken` → `rotateGatewayLinkToken`，
-  路由 `…/setup-token` → `…/link-token`，字段 `setupToken` / `bootstrapExpiresAt` → `linkToken` / `linkExpiresAt`；
-  宿主侧启动命令改为 `WIST_GWLINKD_LINK_TOKEN=… wist-gwlinkd run`。
+  路由 `…/setup-token` → `…/link-token`，字段 `setupToken` / `bootstrapExpiresAt` → `linkToken` / `linkExpiresAt`。
 
 ## [0.1.3-alpha] - 2026-10-04
 

@@ -126,43 +126,47 @@
   line-height: 1.55;
 }
 
-.accessGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(180px, 0.45fr);
-  align-items: start;
-  gap: 24px;
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.endpointColumn,
-.metadataColumn {
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.stepIndex {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+
+.stepBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
 }
 
-.metadataColumn {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-  padding-top: 1px;
-}
-
-.infoItem {
+.stepHead {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-width: 0;
-  color: var(--text);
-  font-size: 13px;
-}
-
-.tokenBuilder {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .tokenHint {
@@ -170,30 +174,6 @@
   color: var(--text-3);
   font-size: 11px;
   line-height: 1.45;
-}
-
-.tokenRow {
-  display: flex;
-  align-items: stretch;
-  gap: 7px;
-}
-
-.tokenInput {
-  min-width: 0;
-  flex: 1;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 12.5px;
-}
-
-.tokenInput:focus {
-  border-color: var(--accent);
-  outline: 0;
-  box-shadow: var(--ring);
 }
 
 .generateButton {
@@ -222,61 +202,6 @@
   color: var(--text-3);
   font-size: 11px;
   font-weight: 700;
-}
-
-.urlRow {
-  display: flex;
-  align-items: stretch;
-  gap: 7px;
-  min-width: 0;
-}
-
-.url {
-  min-width: 0;
-  flex: 1;
-  padding: 9px 10px;
-  overflow-wrap: anywhere;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.copyButton {
-  align-self: stretch;
-  padding: 0 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.copyButton:hover:not(:disabled) {
-  border-color: var(--accent-border);
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.copyButton:focus-visible {
-  outline: 0;
-  box-shadow: var(--ring);
-}
-
-.hint {
-  margin-top: 18px;
-  padding: 10px 12px;
-  border: 1px solid var(--warn-border);
-  border-radius: var(--radius-sm);
-  background: var(--warn-soft);
-  color: var(--warn);
-  font-size: 12.5px;
-  line-height: 1.55;
 }
 
 .curlBlock {
@@ -397,19 +322,12 @@
     padding: 18px;
   }
 
+  .stepHead {
+    flex-direction: column;
+  }
+
   .card {
     padding: 17px;
-  }
-
-  .accessGrid {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-
-  .metadataColumn {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    padding-top: 0;
   }
 
   .curlHeader {
@@ -419,10 +337,6 @@
 
   .curlCopyButton {
     align-self: flex-start;
-  }
-
-  .metadataColumn {
-    grid-template-columns: 1fr;
   }
 
   .timeline {
