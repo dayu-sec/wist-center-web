@@ -1,4 +1,4 @@
-/* 创建升级计划面板：多目标 + 范围多选 + 分批执行步骤。 */
+/* 创建升级计划面板：多目标 + 范围多选 + 灰度阶段（选阶段数自动分配）。 */
 
 .block {
   margin-bottom: 14px;
@@ -119,22 +119,213 @@
   color: var(--text-3);
 }
 
-.stepBlock {
-  margin-bottom: 10px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+.blockActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
+.sectionNote {
+  color: var(--text-4);
+  font-size: 11.5px;
+  text-align: right;
+}
 
-.stepHeader {
+.formNote {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.formError {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12.5px;
+}
+
+/* ---------- 灰度阶段：选阶段数 → 阶梯自动分配（口径同 gateway-web） ---------- */
+
+.countTabs {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.countTab {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.countTab:hover {
+  color: var(--text);
+}
+
+.countTabActive,
+.countTabActive:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.countTab:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.phaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--border);
+}
+
+.phaseItem {
+  display: flex;
+  gap: 12px;
+  padding: 11px 14px;
+  background: var(--bg-elevated);
+}
+
+.phaseRail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  width: 20px;
+}
+
+.railDot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 13px;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.railDotCanary {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.railDotFinal {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.railLine {
+  flex: 1 1 auto;
+  width: 1px;
+  min-height: 6px;
+  background: var(--border-strong);
+}
+
+.phaseItem:last-child .railLine {
+  display: none;
+}
+
+.phaseBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.phaseTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.phaseIndex {
   color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.phaseScale {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.phaseScaleCanary {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.phaseScaleFinal {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.phaseMeta {
+  color: var(--text-4);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.phaseGateways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 108px;
+  overflow-y: auto;
+}
+
+.gatewayChip {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
 }
 
 .formAction {
