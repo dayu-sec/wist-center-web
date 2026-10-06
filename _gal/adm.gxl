@@ -11,8 +11,12 @@ mod main   : ver_adm {
   flow _entry : ver.use {
   }
 
-  // 没有 `flow _set_ver | ver.syn_file`：本仓没有跟着版本走的文件。
-  // 原先指向 `.github/workflows/release.yml`，但该文件里没有 `#@gxl:set(version)` 标记，
-  // 退出钩子在 strict 模式下必然 `marker hit mismatch`（hits=0），让 `gx adm v_patch` 以 255 失败。
-  // 版本权威就是 `version.txt` 本身（tag 与它同名），与 wist-gateway-web / 两个 stack 仓保持一致。
+  // 版本落进 package.json。package.json 是严格 JSON，装不下 `#@gxl:set(version)` 注释
+  // （注释会让 npm / Vite 解析失败），所以不走 `ver.syn_file` 打点改行，而是 JSON 安全写入：
+  // `gx adm v_patch | v_feat` 退出时把 version.txt 的版本同步进 package.json（脚本见 _gal/sync_version.mjs）。
+  #[auto_load(exit)]
+  flow _set_ver {
+    gx.ver ( file : "${GXL_START_ROOT}/version.txt" , inc : "null" );
+    gx.cmd ( "node ${GXL_START_ROOT}/_gal/sync_version.mjs ${GXL_START_ROOT}/package.json ${VERSION}" );
+  }
 }
