@@ -77,6 +77,16 @@
 .metric:last-child {
   border-right: 0;
 }
+/* 行末（第 5 列）不画分隔线；最后一行不满时（末格落在中列）也不留悬空分隔线。 */
+.metric:nth-child(5n) {
+  border-right: 0;
+}
+
+/* 趋势图自成一块（整宽），不再被塞进 5 列指标网格里。 */
+.chartBlock {
+  padding: 4px 20px 20px;
+  border-top: 1px solid var(--border);
+}
 .metricLabel {
   color: var(--text-3);
   font-size: 11.5px;
@@ -221,8 +231,12 @@
   .metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .metric {
-    border-bottom: 1px solid var(--border);
+  /* 每行 2 个：行末（偶数列）不画右分隔线；奇数列恢复分隔线（覆盖 base 的 5n 规则）。 */
+  .metric:nth-child(2n) {
+    border-right: 0;
+  }
+  .metric:nth-child(2n + 1) {
+    border-right: 1px solid var(--border);
   }
 }
 

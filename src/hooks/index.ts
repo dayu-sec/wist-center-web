@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
   approveUpgradePlan,
@@ -19,8 +19,7 @@ import {
   fetchReleases,
   fetchUpgradePlans,
   getAdminApiToken,
-  publishWistAgentd,
-  publishWarpGateWay,
+  publishRelease,
   rotateGatewayLinkToken,
   type ApproveUpgradePlanCommand,
   type BindGatewayCustomerCommand,
@@ -181,6 +180,27 @@ export function useReleases(component: string) {
   });
 }
 
+/** 一次拉取多个组件的发布记录，返回 `{ component: 版本列表 }`（升级目标版本下拉用）。 */
+export function useReleasesForComponents(
+  components: readonly string[],
+): Record<string, string[]> {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken());
+  const results = useQueries({
+    queries: components.map((component) => ({
+      queryKey: ["releases", component],
+      queryFn: () => fetchReleases(component),
+      refetchInterval: enabled ? 15_000 : 30_000,
+    })),
+  });
+  const versions: Record<string, string[]> = {};
+  components.forEach((component, index) => {
+    versions[component] =
+      results[index]?.data?.data?.map((release) => release.version) ?? [];
+  });
+  return versions;
+}
+
 export function useGatewayInstances() {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken());
@@ -249,23 +269,14 @@ export function useGatewayInitialConfig() {
   });
 }
 
-export function usePublishWistAgentd() {
+export function usePublishRelease(component: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (command: PublishReleaseCommand) => publishWistAgentd(command),
-    // 发布成功后刷新当前组件的历史，立即反馈新版本已进入发布记录。
+    mutationFn: (command: PublishReleaseCommand) =>
+      publishRelease(component, command),
+    // 发布成功后刷新该组件的历史，立即反馈新版本已进入发布记录。
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["releases", "wist-agentd"] }),
-  });
-}
-
-export function usePublishWarpGateWay() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (command: PublishReleaseCommand) => publishWarpGateWay(command),
-    // 发布成功后刷新当前组件的历史，立即反馈新版本已进入发布记录。
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["releases", "wist-gateway"] }),
+      queryClient.invalidateQueries({ queryKey: ["releases", component] }),
   });
 }
 

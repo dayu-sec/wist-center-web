@@ -78,6 +78,12 @@ export function GatewayStatusCard({
             <GatewayVersionText value={gateway.version} />
           </div>
           <div className={styles.item}>
+            <div className={styles.label}>域名</div>
+            <div title={gateway.publicBaseUrl ?? undefined}>
+              {gateway.publicBaseUrl ?? "—"}
+            </div>
+          </div>
+          <div className={styles.item}>
             <div className={styles.label}>最后上报</div>
             <div className={stale ? styles.staleValue : undefined}>
               {formatRelativeTime(gateway.lastSeenAt)}

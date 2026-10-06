@@ -136,6 +136,8 @@ export function GatewayDetailPage() {
                 <div className={styles.metricLabel}>负载（1m）</div>
                 <div>{gateway.load1m === null ? "—" : gateway.load1m.toFixed(2)}</div>
               </div>
+            </div>
+            <div className={styles.chartBlock}>
               <GatewayHistoryChart
                 history={historyData?.data}
                 loading={isHistoryLoading}

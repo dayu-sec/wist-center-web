@@ -1,17 +1,28 @@
 import { useState } from "react";
 import { useGatewayAgentsForAll, useGatewayStatusView } from "../hooks";
 import { PageShell } from "./ui";
-import { WistAgentdReleasePanel } from "./WistAgentdReleasePanel";
-import { WarpGateWayReleasePanel } from "./WarpGateWayReleasePanel";
+import { UpgradePlanCreatePanel } from "./UpgradePlanCreatePanel";
+import { AgentPackagePushPanel } from "./AgentPackagePushPanel";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
 import { GatewayVersionText } from "./GatewayVersionText";
-import styles from "./ReleasePage.module.css";
+import styles from "./ReleaseWorkspace.module.css";
 
-/** 版本发布：发布 WistAgentd / WarpGateWay 新版本，并展示各网关/Agent 的当前与历史版本信息。 */
+type ReleaseFlow = "upgrade" | "agent-package";
+
+const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
+  { key: "upgrade", name: "① 升级安装", tagline: "stack / gops / gx" },
+  { key: "agent-package", name: "② Agent 包下发", tagline: "推到网关包管理" },
+];
+
+/**
+ * 发布：把**中心托管的包**装出去，两种（区别在「谁决定升级」）：
+ * ① 升级安装 —— `wist-gateway-stack` / `galaxy-ops` / `galaxy-flow` 推到网关，中心决定、装下去；
+ * ② Agent 包下发 —— `wist-agentd` 推到网关的包管理，是否升级由网关决定。
+ *
+ * 包本身的录入/历史见「包管理」页。
+ */
 export function ReleasePage() {
-  const [activeTarget, setActiveTarget] = useState<"gateway" | "agentd">(
-    "gateway",
-  );
+  const [activeFlow, setActiveFlow] = useState<ReleaseFlow>("upgrade");
   const { data: statusData } = useGatewayStatusView();
   const gateways = statusData?.data ?? [];
   const gatewayIds = gateways.map((gateway) => gateway.gatewayId);
@@ -20,66 +31,49 @@ export function ReleasePage() {
 
   return (
     <PageShell
-      title="版本发布"
-      summary="选择发布目标，提交版本产物并查看发布记录；当前已部署版本用于评估升级范围。"
+      title="发布"
+      summary="把中心托管的安装包装出去：① 宿主组件推下去升级安装；② Agent 包推到网关的包管理（由网关决定升级）。"
     >
       <section className={styles.workspace}>
         <header className={styles.workspaceHeader}>
           <div>
-            <h2 className={styles.workspaceTitle}>发布新版本</h2>
+            <h2 className={styles.workspaceTitle}>发布方式</h2>
             <p className={styles.workspaceSubtitle}>
-              一次只处理一个发布目标，减少误发布并让历史记录保持聚焦。
+              区别在「谁决定升级」：① 由中心直接推下去安装；② 只把包交给网关，升不升由网关决定。
             </p>
           </div>
         </header>
-        <div className={styles.tabs} role="tablist" aria-label="发布目标">
-          <button
-            type="button"
-            role="tab"
-            id="release-tab-gateway"
-            aria-selected={activeTarget === "gateway"}
-            aria-controls="release-panel"
-            className={
-              activeTarget === "gateway"
-                ? `${styles.tab} ${styles.tabActive}`
-                : styles.tab
-            }
-            onClick={() => setActiveTarget("gateway")}
-          >
-            <strong>WarpGateWay</strong>
-            <span>网关运行时</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            id="release-tab-agentd"
-            aria-selected={activeTarget === "agentd"}
-            aria-controls="release-panel"
-            className={
-              activeTarget === "agentd"
-                ? `${styles.tab} ${styles.tabActive}`
-                : styles.tab
-            }
-            onClick={() => setActiveTarget("agentd")}
-          >
-            <strong>WistAgentd</strong>
-            <span>Agent 服务</span>
-          </button>
+        <div className={styles.tabs} role="tablist" aria-label="发布方式">
+          {FLOWS.map((flow) => (
+            <button
+              key={flow.key}
+              type="button"
+              role="tab"
+              id={`release-tab-${flow.key}`}
+              aria-selected={flow.key === activeFlow}
+              aria-controls="release-panel"
+              className={
+                flow.key === activeFlow
+                  ? `${styles.tab} ${styles.tabActive}`
+                  : styles.tab
+              }
+              onClick={() => setActiveFlow(flow.key)}
+            >
+              <strong>{flow.name}</strong>
+              <span>{flow.tagline}</span>
+            </button>
+          ))}
         </div>
         <div
           id="release-panel"
           role="tabpanel"
-          aria-labelledby={
-            activeTarget === "gateway"
-              ? "release-tab-gateway"
-              : "release-tab-agentd"
-          }
+          aria-labelledby={`release-tab-${activeFlow}`}
           className={styles.tabPanel}
         >
-          {activeTarget === "gateway" ? (
-            <WarpGateWayReleasePanel />
+          {activeFlow === "upgrade" ? (
+            <UpgradePlanCreatePanel />
           ) : (
-            <WistAgentdReleasePanel />
+            <AgentPackagePushPanel />
           )}
         </div>
       </section>
@@ -89,7 +83,7 @@ export function ReleasePage() {
           <div>
             <h2 className={styles.sectionTitle}>已部署版本</h2>
             <p className={styles.sectionSubtitle}>
-              这些版本来自当前在线状态上报，不代表尚未部署的发布记录。
+              这些版本来自当前在线状态上报，用于评估发布/升级范围。
             </p>
           </div>
         </header>

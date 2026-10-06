@@ -3,7 +3,7 @@ import type { UpgradeStep, UpgradeTarget } from "../api";
 import {
   useCreateUpgradePlan,
   useGatewayStatusView,
-  useReleases,
+  useReleasesForComponents,
 } from "../hooks";
 import {
   ErrorBanner,
@@ -14,25 +14,27 @@ import {
 } from "./ui";
 import styles from "./UpgradePlanCreatePanel.module.css";
 
-const COMPONENTS = ["wist-agentd", "wist-gateway"] as const;
+// ① 升级安装的目标组件：stack / gops / gx（agentd 走 ②「Agent 包下发」，由网关决定升级，不经计划）。
+const COMPONENTS = [
+  "wist-gateway-stack",
+  "galaxy-ops",
+  "galaxy-flow",
+] as const;
 
 /** 创建升级计划：多组件目标版本 + Gateway 范围多选 + 分批执行步骤（滚动升级）。 */
 export function UpgradePlanCreatePanel() {
   const mutation = useCreateUpgradePlan();
   const { data: statusData } = useGatewayStatusView();
   const gateways = statusData?.data ?? [];
-  const { data: agentdReleases } = useReleases("wist-agentd");
-  const { data: gatewayReleases } = useReleases("wist-gateway");
+  const versionsByComponent = useReleasesForComponents(COMPONENTS);
 
   // 目标版本从已发布版本中选取（下拉）。
   function versionsFor(component: string): string[] {
-    const releases =
-      component === "wist-gateway" ? gatewayReleases : agentdReleases;
-    return releases?.data?.map((release) => release.version) ?? [];
+    return versionsByComponent[component] ?? [];
   }
 
   const [targets, setTargets] = useState<UpgradeTarget[]>([
-    { component: "wist-agentd", targetVersion: "" },
+    { component: "wist-gateway-stack", targetVersion: "" },
   ]);
   const [selected, setSelected] = useState<string[]>([]);
   const [steps, setSteps] = useState<UpgradeStep[]>([]);
@@ -45,7 +47,7 @@ export function UpgradePlanCreatePanel() {
   function addTarget() {
     setTargets((prev) => [
       ...prev,
-      { component: "wist-agentd", targetVersion: "" },
+      { component: "wist-gateway-stack", targetVersion: "" },
     ]);
   }
   function removeTarget(index: number) {

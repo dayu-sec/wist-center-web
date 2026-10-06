@@ -12,6 +12,8 @@ export interface GatewayStatusView {
   gatewayId: string;
   instanceId: string;
   version: string;
+  // 网关对外域名（管理面「对外地址」‖`[server] public_base_url`）；后端 0.9 起上报，老数据为 null。
+  publicBaseUrl: string | null;
   status: GatewayStatus;
   health: GatewayHealth;
   memoryBytes: number | null;
@@ -236,8 +238,11 @@ export interface GetGatewayInitialConfigCommand {
 }
 
 export interface PublishReleaseCommand {
-  version: string;
+  /** 版本号可省：不填时由中心从**包地址**（文件名 / 包内目录名）自动解析。 */
+  version?: string;
   artifactUrl: string;
+  /** 可选的期望内容摘要（sha256，可带 `sha256:` 前缀）：中心核对读到的字节，不符即拒。 */
+  expectedSha256?: string;
   requestedBy: string;
 }
 
@@ -440,6 +445,7 @@ function normalizeGatewayStatusView(payload: any): GatewayStatusView {
       "gateway.instanceId",
     ),
     version: requiredString(payload.version, "gateway.version"),
+    publicBaseUrl: nullableString(payload, "public_base_url", "publicBaseUrl"),
     status: normalizeGatewayStatus(payload.status),
     health: normalizeGatewayHealth(payload.health),
     memoryBytes: nullableNumber(payload, "memory_bytes", "memoryBytes"),
@@ -709,6 +715,7 @@ function isoMinutesAgo(minutes: number): string {
 
 /** 富化字段的空值（示例数据用：老后端不带这些）。 */
 const NO_GATEWAY_EXTRAS = {
+  publicBaseUrl: null,
   uptimeSeconds: null,
   agentCount: null,
   onlineAgents: null,
@@ -1140,13 +1147,43 @@ function exampleInitialConfig(
   };
 }
 
-function exampleRelease(command: PublishReleaseCommand): WistAgentdRelease {
-  return {
-    version: command.version,
-    artifactUrl: command.artifactUrl,
-    status: "published",
-    publishedAt: new Date().toISOString(),
-  };
+/** 目标三元组的已知架构名（与中心/网关侧同表）；用于从制品名里截掉架构后缀。 */
+const KNOWN_ARCHES = [
+  "aarch64",
+  "x86_64",
+  "i686",
+  "i586",
+  "armv7",
+  "armv6",
+  "arm",
+  "riscv64",
+  "powerpc64",
+  "powerpc64le",
+  "s390x",
+  "x86_64h",
+  "loongarch64",
+];
+
+/**
+ * 从制品来源（URL / 路径）的末段**粗解析**版本号（供表单预览与离线示例）。
+ *
+ * ⚠️ **权威解析在中心侧**（`wist-center/src/infra/package.rs::read_package_identity`）：
+ * 先看包内目录名、读不出再回落来源文件名。这里只做同一套规则的轻量版，
+ * 让操作者在提交前能看见会记哪个版本；真值以发布回执为准。
+ */
+export function versionFromArtifactUrl(source: string): string {
+  const basename = (source.split(/[?#]/)[0].split("/").pop() ?? "").replace(
+    /\.(tar\.gz|tar\.bz2|tar\.xz|tgz|tar|gz|zip|bin)$/i,
+    "",
+  );
+  // 先截掉架构后缀（`<name>-<version>-<arch>-<os>-<abi>` 里的 `<arch>` 及其后）。
+  const segments = basename.split("-");
+  const archAt = segments.findIndex(
+    (segment, index) => index > 0 && KNOWN_ARCHES.includes(segment),
+  );
+  const head = archAt >= 0 ? segments.slice(0, archAt).join("-") : basename;
+  const match = head.match(/v?\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.]+)*/);
+  return match ? match[0] : "";
 }
 
 function exampleUpgradePlan(command: CreateUpgradePlanCommand): UpgradePlan {
@@ -1478,48 +1515,29 @@ function exampleReleases(component: string): WistAgentdRelease[] {
   ];
 }
 
-export async function publishWistAgentd(
+/**
+ * 发布/提交某组件的新版本（中心把制品镜像到本地并落库）。
+ *
+ * **刻意不回落示例**：这是**写操作**，示例回执会把「其实没提交成功」伪装成一张成功卡
+ * （曾把一个 422 掩盖成回执）—— 与 `rotateGatewayLinkToken` 同一取舍。真实失败就让它冒出来。
+ */
+export async function publishRelease(
+  component: string,
   command: PublishReleaseCommand,
 ): Promise<ExampleResult<WistAgentdRelease>> {
-  return fetchOrFallback(
-    "/api/v1/admin/releases/wist-agentd",
-    () => exampleRelease(command),
+  const raw = await requestJson<any>(
+    `/api/v1/admin/releases/${encodeURIComponent(component)}`,
     {
       method: "POST",
       body: JSON.stringify({
-        version: command.version,
+        version: command.version?.trim() || undefined,
         artifact_url: command.artifactUrl,
+        expected_sha256: command.expectedSha256?.trim() || undefined,
         requested_by: command.requestedBy,
       }),
     },
-  ).then(async (result) => {
-    if (result.source === "real") {
-      return { ...result, data: normalizeRelease(result.data) };
-    }
-    return result;
-  });
-}
-
-export async function publishWarpGateWay(
-  command: PublishReleaseCommand,
-): Promise<ExampleResult<WarpGateWayRelease>> {
-  return fetchOrFallback(
-    "/api/v1/admin/releases/wist-gateway",
-    () => exampleRelease(command),
-    {
-      method: "POST",
-      body: JSON.stringify({
-        version: command.version,
-        artifact_url: command.artifactUrl,
-        requested_by: command.requestedBy,
-      }),
-    },
-  ).then(async (result) => {
-    if (result.source === "real") {
-      return { ...result, data: normalizeRelease(result.data) };
-    }
-    return result;
-  });
+  );
+  return { source: "real", data: normalizeRelease(raw) };
 }
 
 export async function fetchUpgradePlans(): Promise<
@@ -1542,7 +1560,7 @@ function exampleUpgradePlans(): UpgradePlan[] {
       planId: "plan-example-1",
       targets: [
         { component: "wist-agentd", targetVersion: "v2.5.0" },
-        { component: "wist-gateway", targetVersion: "v3.1.0" },
+        { component: "wist-gateway-stack", targetVersion: "v3.1.0" },
       ],
       targetCount: 2,
       status: "pending",

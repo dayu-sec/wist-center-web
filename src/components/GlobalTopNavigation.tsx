@@ -48,15 +48,12 @@ function IconRelease() {
   );
 }
 
-function IconPlan() {
+function IconPackage() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      <circle cx="3.4" cy="8" r="1.7" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M5.1 8h2.1" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <circle cx="9.2" cy="4.4" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <circle cx="9.2" cy="11.6" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M7.2 8 9.2 5.6M7.2 8l2 2.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M10.7 4.4h2.2M10.7 11.6h2.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <rect x="2" y="7.4" width="12" height="6.4" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M4.2 7.4V5.2h7.6v2.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M6.2 5.2V3.4h3.6v1.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -86,8 +83,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "发布",
     items: [
-      { to: "/release", label: "版本发布", icon: <IconRelease /> },
-      { to: "/upgrade-plan", label: "升级计划", icon: <IconPlan />, end: true },
+      { to: "/packages", label: "包管理", icon: <IconPackage />, end: true },
+      { to: "/release", label: "发布", icon: <IconRelease />, end: true },
       {
         to: "/upgrade-plan/approve",
         label: "批准升级计划",
