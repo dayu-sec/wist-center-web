@@ -5,6 +5,9 @@
 // 后端接口尚未实现时，请求失败自动回退到 example 数据（source: "example"），
 // 保证前端独立可渲染；接入真实后端后自动切换为 "real"。
 
+// 离线示例要用与服务端**同一套**阶梯口径（权威在 `wist-release::rollout`）。
+import { planPhases } from "../components/rolloutPhases";
+
 export type GatewayStatus = "online" | "offline" | (string & {});
 export type GatewayHealth = "healthy" | "degraded" | "unhealthy" | "unknown";
 
@@ -249,7 +252,11 @@ export interface PublishReleaseCommand {
 export interface CreateUpgradePlanCommand {
   targets: UpgradeTarget[];
   gatewayIds: string[];
-  steps: UpgradeStep[];
+  /**
+   * 分几段灰度（1 = 不分批，一把到位）。可用段数受台数限制，见 `availablePhaseCounts`。
+   * **阶段由中心服务端按阶梯切**，前端只给这个数，不再传 `steps`。
+   */
+  phaseCount: number;
   requestedBy: string;
 }
 
@@ -1187,13 +1194,20 @@ export function versionFromArtifactUrl(source: string): string {
 }
 
 function exampleUpgradePlan(command: CreateUpgradePlanCommand): UpgradePlan {
+  // 离线示例：按与服务端**同一套**阶梯口径（权威在 `wist-release::rollout`）算出阶段，
+  // 免得演示数据与真实回执长得不一样。
+  const { phases } = planPhases(command.gatewayIds, command.phaseCount);
   return {
     planId: `plan-${Math.random().toString(36).slice(2, 8)}`,
     targets: command.targets,
     targetCount: command.gatewayIds.length,
     status: "pending",
     createdAt: new Date().toISOString(),
-    steps: command.steps,
+    steps: phases.map((phase, index) => ({
+      stepIndex: index + 1,
+      gatewayIds: phase.targetIds,
+      status: "pending",
+    })),
   };
 }
 
@@ -1566,8 +1580,8 @@ function exampleUpgradePlans(): UpgradePlan[] {
       status: "pending",
       createdAt: new Date().toISOString(),
       steps: [
-        { stepIndex: 0, gatewayIds: ["gw-001"], status: "pending" },
-        { stepIndex: 1, gatewayIds: ["gw-002"], status: "pending" },
+        { stepIndex: 1, gatewayIds: ["gw-001"], status: "pending" },
+        { stepIndex: 2, gatewayIds: ["gw-002"], status: "pending" },
       ],
     },
   ];
@@ -1584,7 +1598,7 @@ export async function createUpgradePlan(
       body: JSON.stringify({
         targets: command.targets,
         gateway_ids: command.gatewayIds,
-        steps: command.steps,
+        phase_count: command.phaseCount,
         requested_by: command.requestedBy,
       }),
     },

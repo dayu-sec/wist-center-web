@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import type { UpgradeStep, UpgradeTarget } from "../api";
+import type { UpgradeTarget } from "../api";
 import {
   useCreateUpgradePlan,
   useGatewayStatusView,
@@ -92,16 +92,12 @@ export function UpgradePlanCreatePanel() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // 阶段 → 执行步骤：每步一群互不重叠的网关（人工确认后逐段推进）。
-    const steps: UpgradeStep[] = phasePlan.phases.map((phase, index) => ({
-      stepIndex: index,
-      gatewayIds: phase.targetIds,
-      status: "pending",
-    }));
+    // 阶段由**中心服务端**按阶梯切（与上面的预览同一套口径，权威在 `wist-release::rollout`），
+    // 这里只给阶段数 —— 界面上的预览不再是真值来源。
     mutation.mutate({
       targets,
       gatewayIds: selected,
-      steps,
+      phaseCount: effectivePhaseCount,
       requestedBy: "admin",
     });
   }
