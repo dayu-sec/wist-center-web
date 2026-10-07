@@ -19,4 +19,4 @@ export { PackagePage } from "./PackagePage";
 export { PackagePanel, type PackageTarget } from "./PackagePanel";
 export { ReleasePage } from "./ReleasePage";
 export { UpgradePlanCreatePanel } from "./UpgradePlanCreatePanel";
-export { UpgradePlanApprovePanel } from "./UpgradePlanApprovePanel";
+export { UpgradePlanEntries } from "./UpgradePlanEntries";

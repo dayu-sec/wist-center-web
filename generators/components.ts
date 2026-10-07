@@ -107,9 +107,7 @@ function chineseLabel(name: string): string | null {
     // ── WarpInsightCenter Web ──
     GatewayListPage: "网关列表",
     GatewayInstancePage: "网关实例",
-    GatewayConfigPage: "网关初始配置",
     ReleasePage: "版本发布",
-    UpgradePlanPage: "升级计划",
     GatewayStatusList: "网关状态列表",
     GatewayStatusCard: "网关状态卡片",
     GatewayInstanceText: "网关实例",
@@ -119,11 +117,9 @@ function chineseLabel(name: string): string | null {
     GatewayLastSeenAtText: "最后上报时间",
     GatewayInstanceCreatePanel: "创建网关实例",
     GatewayCustomerBindPanel: "绑定客户",
-    GatewayInitialConfigPanel: "初始配置详情",
     WistAgentdReleasePanel: "WistAgentd 发布",
     WarpGateWayReleasePanel: "WarpGateWay 发布",
     UpgradePlanCreatePanel: "创建升级计划",
-    UpgradePlanApprovePanel: "批准升级计划",
   };
   return labels[normalized] ?? null;
 }

@@ -5,8 +5,12 @@
 // 后端接口尚未实现时，请求失败自动回退到 example 数据（source: "example"），
 // 保证前端独立可渲染；接入真实后端后自动切换为 "real"。
 
-// 离线示例要用与服务端**同一套**阶梯口径（权威在 `wist-release::rollout`）。
-import { planPhases } from "../components/rolloutPhases";
+// 离线示例与服务端用**同一套**阶梯 / 制品口径（单一真源在 `@dayu-sec/wist-web-core`，
+// 权威仍在 Rust 侧 `wist-release`）。
+import { planPhases } from "@dayu-sec/wist-web-core/release";
+
+// 制品来源的版本粗解析也收到共享包里（与 `PackagePanel` 同一个）。
+export { versionFromArtifactUrl } from "@dayu-sec/wist-web-core/artifact";
 
 export type GatewayStatus = "online" | "offline" | (string & {});
 export type GatewayHealth = "healthy" | "degraded" | "unhealthy" | "unknown";
@@ -182,31 +186,71 @@ export interface WarpGateWayRelease {
   publishedAt: string;
 }
 
+/** 结构化升级目标（前端入参；落到计划 `spec` 的 `{"targets":[…]}`）。 */
 export interface UpgradeTarget {
   component: string;
   targetVersion: string;
 }
 
-export interface UpgradeStep {
-  stepIndex: number;
-  gatewayIds: string[];
+/** 灰度发布计划里的一个阶段（模型 `Control.Rollout.RolloutPhase`）。 */
+export interface RolloutPhase {
+  phaseIndex: number;
+  targetIds: string[];
+  /** manual | all_succeeded | success_rate:<NN> */
+  advanceRule: string;
+  /** pending | rolling | completed */
   status: string;
 }
 
-export interface UpgradePlan {
+/** 灰度发布计划（模型 `Control.Rollout.RolloutPlan`；中心铺的是网关，target = gateway_id）。 */
+export interface RolloutPlan {
   planId: string;
-  targets: UpgradeTarget[];
-  targetCount: number;
+  /** 今天只有 `upgrade`。 */
+  action: string;
+  /** 动作参数（JSON）：`{"targets":[{"component","target_version"}]}`。 */
+  spec: string;
+  deadlineAt: string | null;
+  timeoutSeconds: number;
+  phases: RolloutPhase[];
+  batchSize: number;
+  /** 当前进行到第几阶段（0 = 尚未开始）。 */
+  currentPhase: number;
+  /** draft | rolling | completed | failed | canceled */
   status: string;
+  createdBy: string;
   createdAt: string;
-  steps: UpgradeStep[];
+  approvedBy: string | null;
+  approvedAt: string | null;
 }
 
-export interface UpgradePlanApproval {
-  planId: string;
+/** 计划里逐目标（网关）的一行（模型 `Control.Rollout.RolloutPlanEntry`）。 */
+export interface RolloutPlanEntry {
+  targetId: string;
+  workId: string | null;
+  /** pending | dispatched | succeeded | failed */
   status: string;
-  approvedBy: string;
-  approvedAt: string;
+  detail: string;
+  updatedAt: string;
+}
+
+/** 计划 + 逐目标进度（模型 `Control.Rollout.RolloutPlanView`）。 */
+export interface RolloutPlanDetail {
+  plan: RolloutPlan;
+  entries: RolloutPlanEntry[];
+}
+
+/** 拼 `upgrade` 动作的 `spec`（与中心/网关两端的计划口径同形）。 */
+export function jsonUpgradeSpec(targets: UpgradeTarget[]): string {
+  return JSON.stringify({
+    targets: targets.map((target) => ({
+      component: target.component,
+      // 版本**可省**（留空就不写）：升级器回落用「包内 agentd 自报的版本」
+      // —— 与网关侧 `jsonUpgradeSpec` 同一取舍。
+      ...(target.targetVersion.trim()
+        ? { target_version: target.targetVersion.trim() }
+        : {}),
+    })),
+  });
 }
 
 export interface GlobalPolicyDispatch {
@@ -250,19 +294,27 @@ export interface PublishReleaseCommand {
 }
 
 export interface CreateUpgradePlanCommand {
-  targets: UpgradeTarget[];
-  gatewayIds: string[];
+  /** 动作面：今天只有 `upgrade`。 */
+  action: string;
+  /** 动作参数（JSON 字符串）；`upgrade` 用 `jsonUpgradeSpec` 从结构化目标拼。 */
+  spec: string;
+  /** 计划要铺到的目标（gateway_id）。 */
+  targetIds: string[];
   /**
    * 分几段灰度（1 = 不分批，一把到位）。可用段数受台数限制，见 `availablePhaseCounts`。
-   * **阶段由中心服务端按阶梯切**，前端只给这个数，不再传 `steps`。
+   * **阶段由中心服务端按阶梯切**，前端只给这个数。
    */
   phaseCount: number;
-  requestedBy: string;
+  /** RFC3339 绝对截止。 */
+  deadlineAt: string;
+  /** 执行预算（秒），必须为正。 */
+  timeoutSeconds: number;
+  /** 每阶段内同时执行的台数（0 = 不节流）。 */
+  batchSize: number;
 }
 
-export interface ApproveUpgradePlanCommand {
+export interface PlanRefCommand {
   planId: string;
-  approvedBy: string;
 }
 
 // ── 结果信封：数据 + 来源标记 ──
@@ -650,67 +702,83 @@ function normalizeRelease(payload: any): WistAgentdRelease {
   };
 }
 
-function normalizeUpgradeTarget(payload: any): UpgradeTarget {
+function normalizeRolloutPhase(payload: any): RolloutPhase {
+  const raw = pick(payload, "target_ids", "targetIds");
   return {
-    component: requiredString(payload.component, "target.component"),
-    targetVersion: requiredString(
-      pick(payload, "target_version", "targetVersion"),
-      "target.targetVersion",
+    phaseIndex: requiredNumber(
+      pick(payload, "phase_index", "phaseIndex"),
+      "phase.phaseIndex",
     ),
+    targetIds: Array.isArray(raw) ? (raw as string[]) : [],
+    advanceRule: requiredString(
+      pick(payload, "advance_rule", "advanceRule"),
+      "phase.advanceRule",
+    ),
+    status: requiredString(payload.status, "phase.status"),
   };
 }
 
-function normalizeUpgradeStep(payload: any): UpgradeStep {
-  return {
-    stepIndex: requiredNumber(
-      pick(payload, "step_index", "stepIndex"),
-      "step.stepIndex",
-    ),
-    gatewayIds: Array.isArray(pick(payload, "gateway_ids", "gatewayIds"))
-      ? (pick(payload, "gateway_ids", "gatewayIds") as string[])
-      : [],
-    status: requiredString(payload.status, "step.status"),
-  };
+function optionalString(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value);
 }
 
-function normalizeUpgradePlan(payload: any): UpgradePlan {
-  const rawTargets = Array.isArray(pick(payload, "targets"))
-    ? (pick(payload, "targets") as any[])
-    : [];
-  const rawSteps = Array.isArray(pick(payload, "steps"))
-    ? (pick(payload, "steps") as any[])
-    : [];
+function normalizeRolloutPlan(payload: any): RolloutPlan {
+  const rawPhases = pick(payload, "phases");
   return {
     planId: requiredString(pick(payload, "plan_id", "planId"), "plan.planId"),
-    targets: rawTargets.map(normalizeUpgradeTarget),
-    targetCount: requiredNumber(
-      pick(payload, "target_count", "targetCount"),
-      "plan.targetCount",
+    action: requiredString(payload.action, "plan.action"),
+    spec: requiredString(payload.spec, "plan.spec"),
+    deadlineAt: optionalString(pick(payload, "deadline_at", "deadlineAt")),
+    timeoutSeconds: requiredNumber(
+      pick(payload, "timeout_seconds", "timeoutSeconds"),
+      "plan.timeoutSeconds",
+    ),
+    phases: Array.isArray(rawPhases) ? rawPhases.map(normalizeRolloutPhase) : [],
+    batchSize: requiredNumber(
+      pick(payload, "batch_size", "batchSize"),
+      "plan.batchSize",
+    ),
+    currentPhase: requiredNumber(
+      pick(payload, "current_phase", "currentPhase"),
+      "plan.currentPhase",
     ),
     status: requiredString(payload.status, "plan.status"),
+    createdBy: requiredString(
+      pick(payload, "created_by", "createdBy"),
+      "plan.createdBy",
+    ),
     createdAt: requiredString(
       pick(payload, "created_at", "createdAt"),
       "plan.createdAt",
     ),
-    steps: rawSteps.map(normalizeUpgradeStep),
+    approvedBy: optionalString(pick(payload, "approved_by", "approvedBy")),
+    approvedAt: optionalString(pick(payload, "approved_at", "approvedAt")),
   };
 }
 
-function normalizeUpgradePlanApproval(payload: any): UpgradePlanApproval {
+function normalizeRolloutEntry(payload: any): RolloutPlanEntry {
   return {
-    planId: requiredString(
-      pick(payload, "plan_id", "planId"),
-      "approval.planId",
+    targetId: requiredString(
+      pick(payload, "target_id", "targetId"),
+      "entry.targetId",
     ),
-    status: requiredString(payload.status, "approval.status"),
-    approvedBy: requiredString(
-      pick(payload, "approved_by", "approvedBy"),
-      "approval.approvedBy",
+    workId: optionalString(pick(payload, "work_id", "workId")),
+    status: requiredString(payload.status, "entry.status"),
+    detail: optionalString(payload.detail) ?? "",
+    updatedAt: requiredString(
+      pick(payload, "updated_at", "updatedAt"),
+      "entry.updatedAt",
     ),
-    approvedAt: requiredString(
-      pick(payload, "approved_at", "approvedAt"),
-      "approval.approvedAt",
-    ),
+  };
+}
+
+function normalizeRolloutPlanDetail(payload: any): RolloutPlanDetail {
+  const rawEntries = pick(payload, "entries");
+  return {
+    plan: normalizeRolloutPlan(payload?.plan ?? payload),
+    entries: Array.isArray(rawEntries)
+      ? rawEntries.map(normalizeRolloutEntry)
+      : [],
   };
 }
 
@@ -1154,70 +1222,51 @@ function exampleInitialConfig(
   };
 }
 
-/** 目标三元组的已知架构名（与中心/网关侧同表）；用于从制品名里截掉架构后缀。 */
-const KNOWN_ARCHES = [
-  "aarch64",
-  "x86_64",
-  "i686",
-  "i586",
-  "armv7",
-  "armv6",
-  "arm",
-  "riscv64",
-  "powerpc64",
-  "powerpc64le",
-  "s390x",
-  "x86_64h",
-  "loongarch64",
-];
-
-/**
- * 从制品来源（URL / 路径）的末段**粗解析**版本号（供表单预览与离线示例）。
- *
- * ⚠️ **权威解析在中心侧**（`wist-center/src/infra/package.rs::read_package_identity`）：
- * 先看包内目录名、读不出再回落来源文件名。这里只做同一套规则的轻量版，
- * 让操作者在提交前能看见会记哪个版本；真值以发布回执为准。
- */
-export function versionFromArtifactUrl(source: string): string {
-  const basename = (source.split(/[?#]/)[0].split("/").pop() ?? "").replace(
-    /\.(tar\.gz|tar\.bz2|tar\.xz|tgz|tar|gz|zip|bin)$/i,
-    "",
-  );
-  // 先截掉架构后缀（`<name>-<version>-<arch>-<os>-<abi>` 里的 `<arch>` 及其后）。
-  const segments = basename.split("-");
-  const archAt = segments.findIndex(
-    (segment, index) => index > 0 && KNOWN_ARCHES.includes(segment),
-  );
-  const head = archAt >= 0 ? segments.slice(0, archAt).join("-") : basename;
-  const match = head.match(/v?\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.]+)*/);
-  return match ? match[0] : "";
-}
-
-function exampleUpgradePlan(command: CreateUpgradePlanCommand): UpgradePlan {
+function exampleUpgradePlan(command: CreateUpgradePlanCommand): RolloutPlan {
   // 离线示例：按与服务端**同一套**阶梯口径（权威在 `wist-release::rollout`）算出阶段，
   // 免得演示数据与真实回执长得不一样。
-  const { phases } = planPhases(command.gatewayIds, command.phaseCount);
+  const { phases } = planPhases(command.targetIds, command.phaseCount);
   return {
     planId: `plan-${Math.random().toString(36).slice(2, 8)}`,
-    targets: command.targets,
-    targetCount: command.gatewayIds.length,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    steps: phases.map((phase, index) => ({
-      stepIndex: index + 1,
-      gatewayIds: phase.targetIds,
+    action: command.action,
+    spec: command.spec,
+    deadlineAt: command.deadlineAt,
+    timeoutSeconds: command.timeoutSeconds,
+    phases: phases.map((phase, index) => ({
+      phaseIndex: phase.index,
+      targetIds: phase.targetIds,
+      advanceRule: index === 0 ? "manual" : "all_succeeded",
       status: "pending",
     })),
+    batchSize: command.batchSize,
+    currentPhase: 0,
+    status: "draft",
+    createdBy: "admin",
+    createdAt: new Date().toISOString(),
+    approvedBy: null,
+    approvedAt: null,
   };
 }
 
-function exampleApproval(
-  command: ApproveUpgradePlanCommand,
-): UpgradePlanApproval {
+/** 示例：批准/推进后的计划形状（离线演示用，字段尽量真实）。 */
+function examplePlanRef(
+  command: PlanRefCommand,
+  status: string,
+  currentPhase: number,
+): RolloutPlan {
   return {
     planId: command.planId,
-    status: "approved",
-    approvedBy: command.approvedBy,
+    action: "upgrade",
+    spec: "{\"targets\":[]}",
+    deadlineAt: null,
+    timeoutSeconds: 0,
+    phases: [],
+    batchSize: 0,
+    currentPhase,
+    status,
+    createdBy: "admin",
+    createdAt: new Date().toISOString(),
+    approvedBy: "admin",
     approvedAt: new Date().toISOString(),
   };
 }
@@ -1555,77 +1604,143 @@ export async function publishRelease(
 }
 
 export async function fetchUpgradePlans(): Promise<
-  ExampleResult<UpgradePlan[]>
+  ExampleResult<RolloutPlan[]>
 > {
   return fetchOrFallback(
-    "/api/v1/admin/upgrade-plans",
+    "/api/v1/admin/rollout-plans",
     exampleUpgradePlans,
   ).then(async (result) => {
     if (result.source !== "real") return result;
     const raw = result.data as any;
     const items = Array.isArray(raw) ? raw : [];
-    return { ...result, data: items.map(normalizeUpgradePlan) };
+    return { ...result, data: items.map(normalizeRolloutPlan) };
   });
 }
 
-function exampleUpgradePlans(): UpgradePlan[] {
+/** 查看一份计划及其逐目标进度（`ViewRolloutPlan`）。 */
+export async function fetchUpgradePlan(
+  planId: string,
+): Promise<ExampleResult<RolloutPlanDetail>> {
+  const path = `/api/v1/admin/rollout-plans/${encodeURIComponent(planId)}`;
+  return fetchOrFallback(path, () => exampleRolloutPlanDetail(planId)).then(
+    async (result) => {
+      if (result.source !== "real") return result;
+      return { ...result, data: normalizeRolloutPlanDetail(result.data) };
+    },
+  );
+}
+
+function exampleUpgradePlans(): RolloutPlan[] {
   return [
     {
       planId: "plan-example-1",
-      targets: [
-        { component: "wist-agentd", targetVersion: "v2.5.0" },
-        { component: "wist-gateway-stack", targetVersion: "v3.1.0" },
+      action: "upgrade",
+      spec: jsonUpgradeSpec([
+        { component: "wist-gateway-stack", targetVersion: "0.1.28" },
+      ]),
+      deadlineAt: null,
+      timeoutSeconds: 0,
+      phases: [
+        {
+          phaseIndex: 1,
+          targetIds: ["gw-001"],
+          advanceRule: "manual",
+          status: "rolling",
+        },
+        {
+          phaseIndex: 2,
+          targetIds: ["gw-002"],
+          advanceRule: "all_succeeded",
+          status: "pending",
+        },
       ],
-      targetCount: 2,
-      status: "pending",
+      batchSize: 0,
+      currentPhase: 1,
+      status: "rolling",
+      createdBy: "admin",
       createdAt: new Date().toISOString(),
-      steps: [
-        { stepIndex: 1, gatewayIds: ["gw-001"], status: "pending" },
-        { stepIndex: 2, gatewayIds: ["gw-002"], status: "pending" },
-      ],
+      approvedBy: "admin",
+      approvedAt: new Date().toISOString(),
     },
   ];
 }
 
+function exampleRolloutPlanDetail(planId: string): RolloutPlanDetail {
+  const plan = exampleUpgradePlans()[0];
+  return {
+    plan: { ...plan, planId },
+    entries: [
+      {
+        targetId: "gw-001",
+        workId: null,
+        status: "dispatched",
+        detail: "",
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        targetId: "gw-002",
+        workId: null,
+        status: "pending",
+        detail: "",
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
 export async function createUpgradePlan(
   command: CreateUpgradePlanCommand,
-): Promise<ExampleResult<UpgradePlan>> {
+): Promise<ExampleResult<RolloutPlan>> {
   return fetchOrFallback(
-    "/api/v1/admin/upgrade-plans",
+    "/api/v1/admin/rollout-plans",
     () => exampleUpgradePlan(command),
     {
       method: "POST",
       body: JSON.stringify({
-        targets: command.targets,
-        gateway_ids: command.gatewayIds,
+        action: command.action,
+        spec: command.spec,
+        target_ids: command.targetIds,
         phase_count: command.phaseCount,
-        requested_by: command.requestedBy,
+        deadline_at: command.deadlineAt,
+        timeout_seconds: command.timeoutSeconds,
+        batch_size: command.batchSize,
       }),
     },
   ).then(async (result) => {
     if (result.source === "real") {
-      return { ...result, data: normalizeUpgradePlan(result.data) };
+      return { ...result, data: normalizeRolloutPlan(result.data) };
     }
     return result;
   });
 }
 
+/** 批准计划：`draft → rolling`，进入第一阶段（`ApproveRolloutPlan`）。 */
 export async function approveUpgradePlan(
-  command: ApproveUpgradePlanCommand,
-): Promise<ExampleResult<UpgradePlanApproval>> {
+  command: PlanRefCommand,
+): Promise<ExampleResult<RolloutPlan>> {
   return fetchOrFallback(
-    "/api/v1/admin/upgrade-plans/approve",
-    () => exampleApproval(command),
-    {
-      method: "POST",
-      body: JSON.stringify({
-        plan_id: command.planId,
-        approved_by: command.approvedBy,
-      }),
-    },
+    "/api/v1/admin/rollout-plans/approve",
+    () => examplePlanRef(command, "rolling", 1),
+    { method: "POST", body: JSON.stringify({ plan_id: command.planId }) },
   ).then(async (result) => {
     if (result.source === "real") {
-      return { ...result, data: normalizeUpgradePlanApproval(result.data) };
+      return { ...result, data: normalizeRolloutPlan(result.data) };
+    }
+    return result;
+  });
+}
+
+/** 人工推进到下一阶段（`AdvanceRolloutPlan`）。 */
+export async function advanceUpgradePlan(
+  command: PlanRefCommand,
+): Promise<ExampleResult<RolloutPlan>> {
+  return fetchOrFallback(
+    "/api/v1/admin/rollout-plans/advance",
+    () => examplePlanRef(command, "rolling", 2),
+    { method: "POST", body: JSON.stringify({ plan_id: command.planId }) },
+  ).then(async (result) => {
+    if (result.source === "real") {
+      return { ...result, data: normalizeRolloutPlan(result.data) };
     }
     return result;
   });

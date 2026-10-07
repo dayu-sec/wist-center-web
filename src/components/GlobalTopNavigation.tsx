@@ -81,13 +81,13 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "发布",
+    label: "发布与升级",
     items: [
       { to: "/packages", label: "包管理", icon: <IconPackage />, end: true },
-      { to: "/release", label: "发布", icon: <IconRelease />, end: true },
+      { to: "/release", label: "制定发布计划", icon: <IconRelease />, end: true },
       {
         to: "/upgrade-plan/approve",
-        label: "批准升级计划",
+        label: "计划执行",
         icon: <IconApprove />,
       },
     ],

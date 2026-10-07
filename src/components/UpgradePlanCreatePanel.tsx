@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import type { UpgradeTarget } from "../api";
+import { jsonUpgradeSpec, type UpgradeTarget } from "../api";
 import {
   useCreateUpgradePlan,
   useGatewayStatusView,
@@ -16,7 +16,7 @@ import {
   availablePhaseCounts,
   phaseScaleLabel,
   planPhases,
-} from "./rolloutPhases";
+} from "@dayu-sec/wist-web-core/release";
 import styles from "./UpgradePlanCreatePanel.module.css";
 
 // ① 升级安装的目标组件：stack / gops / gx（agentd 走 ②「Agent 包下发」，由网关决定升级）。
@@ -25,6 +25,15 @@ const COMPONENTS = [
   "galaxy-ops",
   "galaxy-flow",
 ] as const;
+
+/** `datetime-local` 的默认截止（24h 后），转成控件要的 `YYYY-MM-DDTHH:mm`。 */
+function defaultDeadlineLocal(): string {
+  const at = new Date(Date.now() + 24 * 3600 * 1000);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(
+    at.getHours(),
+  )}:${pad(at.getMinutes())}`;
+}
 
 /**
  * 创建升级计划：多组件目标版本 + 网关范围 + **灰度阶段**。
@@ -48,6 +57,10 @@ export function UpgradePlanCreatePanel() {
   ]);
   const [selected, setSelected] = useState<string[]>([]);
   const [phaseCount, setPhaseCount] = useState(3);
+  // 执行约束（服务端要求 `deadline_at` 为 RFC3339、`timeout_seconds` 为正）。
+  const [deadlineLocal, setDeadlineLocal] = useState(defaultDeadlineLocal());
+  const [timeoutSeconds, setTimeoutSeconds] = useState(1800);
+  const [batchSize, setBatchSize] = useState(0);
 
   function updateTarget(index: number, patch: Partial<UpgradeTarget>) {
     setTargets((prev) =>
@@ -90,15 +103,29 @@ export function UpgradePlanCreatePanel() {
     [selected, effectivePhaseCount],
   );
 
+  // 截止时间非法（空 / 残缺）直接禁提交：`new Date(...).toISOString()` 在 Invalid Date 上会抛。
+  const deadline = new Date(deadlineLocal);
+  const deadlineValid = !Number.isNaN(deadline.getTime());
+  const canSubmit =
+    !mutation.isPending &&
+    selected.length > 0 &&
+    !phasePlan.error &&
+    deadlineValid &&
+    timeoutSeconds > 0;
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!deadlineValid) return;
     // 阶段由**中心服务端**按阶梯切（与上面的预览同一套口径，权威在 `wist-release::rollout`），
-    // 这里只给阶段数 —— 界面上的预览不再是真值来源。
+    // 这里只给阶段数；目标版本落成 `spec` 的 JSON。
     mutation.mutate({
-      targets,
-      gatewayIds: selected,
+      action: "upgrade",
+      spec: jsonUpgradeSpec(targets),
+      targetIds: selected,
       phaseCount: effectivePhaseCount,
-      requestedBy: "admin",
+      deadlineAt: deadline.toISOString(),
+      timeoutSeconds,
+      batchSize,
     });
   }
 
@@ -295,15 +322,43 @@ export function UpgradePlanCreatePanel() {
           )}
         </div>
 
+        <div className={styles.block}>
+          <div className={styles.blockHeader}>
+            <span className={styles.blockTitle}>执行约束</span>
+            <span className={styles.sectionNote}>
+              截止时间为绝对时刻；超时为单台执行预算（秒）；每批并发 0 = 不节流
+            </span>
+          </div>
+          <div className={styles.targetRow}>
+            <input
+              type="datetime-local"
+              className={styles.input}
+              value={deadlineLocal}
+              onChange={(e) => setDeadlineLocal(e.target.value)}
+              required
+            />
+            <input
+              type="number"
+              min={1}
+              className={styles.input}
+              value={timeoutSeconds}
+              onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
+              placeholder="超时（秒）"
+              required
+            />
+            <input
+              type="number"
+              min={0}
+              className={styles.input}
+              value={batchSize}
+              onChange={(e) => setBatchSize(Number(e.target.value))}
+              placeholder="每批并发（0=不节流）"
+            />
+          </div>
+        </div>
+
         <div className={styles.formAction}>
-          <PrimaryButton
-            type="submit"
-            disabled={
-              mutation.isPending ||
-              selected.length === 0 ||
-              Boolean(phasePlan.error)
-            }
-          >
+          <PrimaryButton type="submit" disabled={!canSubmit}>
             {mutation.isPending ? "创建中…" : "创建升级计划"}
           </PrimaryButton>
         </div>
@@ -313,17 +368,23 @@ export function UpgradePlanCreatePanel() {
       ) : null}
       {plan ? (
         <ReceiptCard
-          title="升级计划回执"
+          title="灰度发布计划回执"
           fields={[
             ["计划 ID", plan.planId],
             [
               "目标",
-              plan.targets
-                .map((t) => `${t.component} ${t.targetVersion}`)
+              targets
+                .map((t) => `${t.component} ${t.targetVersion || "（包内版本）"}`)
                 .join("，"),
             ],
-            ["升级范围", `${plan.targetCount} 个网关`],
-            ["执行步骤", `${plan.steps.length} 批灰度`],
+            [
+              "升级范围",
+              `${plan.phases.reduce(
+                (sum, phase) => sum + phase.targetIds.length,
+                0,
+              )} 个网关`,
+            ],
+            ["灰度阶段", `${plan.phases.length} 批`],
             ["状态", plan.status],
             ["创建时间", formatDateTime(plan.createdAt)],
           ]}

@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import type { GatewayHistory, GatewayStatusView } from "../api";
-import { formatBytes, formatPercent, formatRelativeTime } from "./ui";
+import { formatBytes, formatPercent } from "./ui";
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
 import { GatewayInstanceText } from "./GatewayInstanceText";
+import { GatewayLastSeenAtText } from "./GatewayLastSeenAtText";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
 import { GatewayVersionText } from "./GatewayVersionText";
 import styles from "./GatewayStatusCard.module.css";
@@ -86,7 +87,7 @@ export function GatewayStatusCard({
           <div className={styles.item}>
             <div className={styles.label}>最后上报</div>
             <div className={stale ? styles.staleValue : undefined}>
-              {formatRelativeTime(gateway.lastSeenAt)}
+              <GatewayLastSeenAtText value={gateway.lastSeenAt} />
             </div>
             {stale ? (
               <div className={styles.staleHint}>长时间未上报</div>

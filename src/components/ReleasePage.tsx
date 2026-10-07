@@ -31,7 +31,7 @@ export function ReleasePage() {
 
   return (
     <PageShell
-      title="发布"
+      title="制定发布计划"
       summary="把中心托管的安装包装出去：① 宿主组件推下去升级安装；② Agent 包推到网关的包管理（由网关决定升级）。"
     >
       <section className={styles.workspace}>

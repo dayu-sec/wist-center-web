@@ -148,13 +148,6 @@
           { "name": "gatewayIds", "ts_type": "string[]", "unique": false, "optional": false },
           { "name": "requestedBy", "ts_type": "string", "unique": false, "optional": false }
         ]
-      },
-      {
-        "name": "ApproveUpgradePlanRequested",
-        "fields": [
-          { "name": "planId", "ts_type": "string", "unique": false, "optional": false },
-          { "name": "approvedBy", "ts_type": "string", "unique": false, "optional": false }
-        ]
       }
     ],
     "messages": []
@@ -291,35 +284,13 @@
       "repeat": null
     },
     {
-      "name": "GatewayConfigPage",
-      "orientation": "vertical",
-      "contains": [
-        { "region": "GlobalTopNavigation", "prop_name": "globalTopNavigation", "slot_fills": [] },
-        { "region": "GatewayInitialConfigPanel", "prop_name": "gatewayInitialConfigPanel", "slot_fills": [] }
-      ],
-      "when": null,
-      "layout_props": [],
-      "interactions": [],
-      "repeat": null
-    },
-    {
-      "name": "GatewayInitialConfigPanel",
-      "orientation": "vertical",
-      "contains": [],
-      "when": null,
-      "layout_props": [],
-      "interactions": [
-        { "op": "onSubmit", "handler_name": "onSubmit", "emit_event": "GetGatewayInitialConfigRequested" }
-      ],
-      "repeat": null
-    },
-    {
       "name": "ReleasePage",
       "orientation": "vertical",
       "contains": [
         { "region": "GlobalTopNavigation", "prop_name": "globalTopNavigation", "slot_fills": [] },
         { "region": "WistAgentdReleasePanel", "prop_name": "wistAgentdReleasePanel", "slot_fills": [] },
-        { "region": "WarpGateWayReleasePanel", "prop_name": "warpGateWayReleasePanel", "slot_fills": [] }
+        { "region": "WarpGateWayReleasePanel", "prop_name": "warpGateWayReleasePanel", "slot_fills": [] },
+        { "region": "UpgradePlanCreatePanel", "prop_name": "upgradePlanCreatePanel", "slot_fills": [] }
       ],
       "when": null,
       "layout_props": [],
@@ -349,19 +320,6 @@
       "repeat": null
     },
     {
-      "name": "UpgradePlanPage",
-      "orientation": "vertical",
-      "contains": [
-        { "region": "GlobalTopNavigation", "prop_name": "globalTopNavigation", "slot_fills": [] },
-        { "region": "UpgradePlanCreatePanel", "prop_name": "upgradePlanCreatePanel", "slot_fills": [] },
-        { "region": "UpgradePlanApprovePanel", "prop_name": "upgradePlanApprovePanel", "slot_fills": [] }
-      ],
-      "when": null,
-      "layout_props": [],
-      "interactions": [],
-      "repeat": null
-    },
-    {
       "name": "UpgradePlanCreatePanel",
       "orientation": "vertical",
       "contains": [],
@@ -369,17 +327,6 @@
       "layout_props": [],
       "interactions": [
         { "op": "onSubmit", "handler_name": "onSubmit", "emit_event": "CreateUpgradePlanRequested" }
-      ],
-      "repeat": null
-    },
-    {
-      "name": "UpgradePlanApprovePanel",
-      "orientation": "vertical",
-      "contains": [],
-      "when": null,
-      "layout_props": [],
-      "interactions": [
-        { "op": "onSubmit", "handler_name": "onSubmit", "emit_event": "ApproveUpgradePlanRequested" }
       ],
       "repeat": null
     }

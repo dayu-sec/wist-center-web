@@ -28,11 +28,11 @@ function describeRoute(pathname: string): RouteMeta {
     case "/instance":
       return { section: "ops", crumbs: ["网关管理"] };
     case "/release":
-      return { section: "ops", crumbs: ["版本发布"] };
+      return { section: "ops", crumbs: ["制定发布计划"] };
     case "/upgrade-plan":
       return { section: "ops", crumbs: ["升级计划"] };
     case "/upgrade-plan/approve":
-      return { section: "ops", crumbs: ["批准升级计划"] };
+      return { section: "ops", crumbs: ["计划执行"] };
     default:
       return { section: "monitoring", crumbs: ["未知页面"] };
   }

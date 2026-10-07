@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
+  advanceUpgradePlan,
   approveUpgradePlan,
   bindGatewayCustomer,
   createGatewayInstance,
@@ -17,15 +18,16 @@ import {
   fetchGatewayStatusView,
   fetchGatewayUptime,
   fetchReleases,
+  fetchUpgradePlan,
   fetchUpgradePlans,
   getAdminApiToken,
   publishRelease,
   rotateGatewayLinkToken,
-  type ApproveUpgradePlanCommand,
   type BindGatewayCustomerCommand,
   type CreateGatewayInstanceCommand,
   type CreateUpgradePlanCommand,
   type GetGatewayInitialConfigCommand,
+  type PlanRefCommand,
   type PublishReleaseCommand,
   type RotateGatewayLinkTokenCommand,
 } from "../api";
@@ -290,16 +292,46 @@ export function useUpgradePlans() {
   });
 }
 
-export function useCreateUpgradePlan() {
-  return useMutation({
-    mutationFn: (command: CreateUpgradePlanCommand) =>
-      createUpgradePlan(command),
+/** 单份计划及其逐目标进度（计划详情）。 */
+export function useUpgradePlan(planId: string | null) {
+  useAuthVersion();
+  return useQuery({
+    queryKey: ["upgrade-plan", planId],
+    queryFn: () => fetchUpgradePlan(planId as string),
+    enabled: Boolean(planId),
   });
 }
 
-export function useApproveUpgradePlan() {
+export function useCreateUpgradePlan() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (command: ApproveUpgradePlanCommand) =>
-      approveUpgradePlan(command),
+    mutationFn: (command: CreateUpgradePlanCommand) =>
+      createUpgradePlan(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
+    },
+  });
+}
+
+/** 批准（进入第一阶段）与推进（下一阶段）共用一套刷新（同页相邻按钮）。 */
+export function useApproveUpgradePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: PlanRefCommand) => approveUpgradePlan(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
+    },
+  });
+}
+
+export function useAdvanceUpgradePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: PlanRefCommand) => advanceUpgradePlan(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
+    },
   });
 }
