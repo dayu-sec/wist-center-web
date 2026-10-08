@@ -10,9 +10,12 @@ WarpInsightCenter 子系统的浏览器端 WEB 前端（Jumo `module<ui> Insight
 | `/gateways/:gatewayId` | 网关详情（状态 / 生命周期 / Agent） | ViewGatewayStatus |
 | `/instance` | 网关管理（实例总览 + 创建） | CreateGatewayInstance / BindGatewayCustomer |
 | `/instance/:gatewayId` | 实例详情（接入材料 / 生命周期） | GetInitialConfig |
-| `/release` | 制定发布计划 | PublishWistAgentd / PublishWarpGateWay |
-| `/upgrade-plan` | 升级计划 | CreateUpgradePlan |
-| `/upgrade-plan/approve` | 计划执行 | ApproveUpgradePlan |
+| `/packages` | 安装包管理（中心托管包列表 / 状态） | — |
+| `/packages/add` | 安装包录入（按组件录入镜像制品） | — |
+| `/release` | 发布计划 | PublishWistAgentd / PublishWarpGateWay |
+| `/release/execute` | 发布执行（计划列表最多展示最新 5 条） | ApproveUpgradePlan |
+| `/upgrade-plan` | 升级计划（旧地址，重定向到 `/release`） | CreateUpgradePlan |
+| `/upgrade-plan/approve` | 旧地址，重定向到 `/release/execute` | ApproveUpgradePlan |
 
 ## 快速开始
 

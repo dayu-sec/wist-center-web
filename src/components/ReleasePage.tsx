@@ -19,7 +19,7 @@ const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
  * ① 升级安装 —— `wist-gateway-stack` / `galaxy-ops` / `galaxy-flow` 推到网关，中心决定、装下去；
  * ② Agent 包下发 —— `wist-agentd` 推到网关的包管理，是否升级由网关决定。
  *
- * 包本身的录入/历史见「包管理」页。
+ * 包本身的录入/历史见「安装包管理」页。
  */
 export function ReleasePage() {
   const [activeFlow, setActiveFlow] = useState<ReleaseFlow>("upgrade");
@@ -31,7 +31,7 @@ export function ReleasePage() {
 
   return (
     <PageShell
-      title="制定发布计划"
+      title="发布计划"
       summary="把中心托管的安装包装出去：① 宿主组件推下去升级安装；② Agent 包推到网关的包管理（由网关决定升级）。"
     >
       <section className={styles.workspace}>

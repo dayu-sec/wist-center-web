@@ -20,6 +20,120 @@
   white-space: nowrap;
 }
 
+/* ---------- 多平台一次录入：槽位 + 地址 + 摘要 ---------- */
+
+.variants {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.variantsHint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.variantsHint strong {
+  color: var(--text-2);
+}
+
+/* ---------- GitHub Release 一键填充 ---------- */
+
+.resolveField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.resolveLabel {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.resolveControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.resolveControls input {
+  flex: 1;
+  min-width: 0;
+}
+
+.resolveButton {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.resolveButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.resolveButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.resolveNote {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.variantRow {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.7fr) minmax(260px, 1.5fr) minmax(220px, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.variantSlot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 20px;
+}
+
+.variantSlot strong {
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.variantSlot span {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.variantError {
+  grid-column: 1 / -1;
+}
+
+.variantsReceipts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
 .history {
   margin-top: 18px;
   padding-top: 16px;
@@ -94,6 +208,53 @@
   white-space: nowrap;
 }
 
+.historyPlatform {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+/* 一个包内含多平台制品：逐行列出（平台 chip + 地址）。 */
+.historyArtifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.historyArtifact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.historyArtifactEmpty {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+/* 回执里的制品列表。 */
+.receiptArtifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.receiptArtifacts li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .historyEmpty {
   padding: 15px 12px;
   border: 1px dashed var(--border-strong);
@@ -106,6 +267,14 @@
 @media (max-width: 760px) {
   .form {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .variantRow {
+    grid-template-columns: 1fr;
+  }
+
+  .variantSlot {
+    padding-top: 0;
   }
 
   .formAction {

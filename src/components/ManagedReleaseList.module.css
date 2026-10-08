@@ -1,0 +1,160 @@
+/* 已托管包汇总列表：组件 / 版本 / 平台 / 状态 / 录入时间 / 操作 六列。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.headerRow,
+.row {
+  display: grid;
+  grid-template-columns:
+    minmax(110px, 0.9fr) minmax(90px, 0.8fr) minmax(120px, 1.3fr)
+    minmax(120px, 0.9fr) minmax(90px, 0.7fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.headerRow {
+  padding: 0 10px;
+  color: var(--text-3);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.row {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  font-size: 12px;
+}
+
+.component {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version,
+.platform,
+.time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.version {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.platform {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 一个平台一个 chip（安装包可含多平台制品）。 */
+.platformChip {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.time {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.actionButton {
+  padding: 5px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.actionButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.actionButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.actionButtonRestore:hover:not(:disabled) {
+  border-color: var(--green, var(--accent));
+}
+
+.empty {
+  padding: 15px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.note {
+  margin-top: 10px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+@media (max-width: 900px) {
+  .headerRow {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+
+  .component,
+  .version {
+    grid-column: 1;
+  }
+
+  .platform,
+  .time {
+    grid-column: 1;
+  }
+
+  .status {
+    grid-column: 1;
+  }
+
+  .action {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-items: center;
+  }
+}

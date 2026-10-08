@@ -1,0 +1,62 @@
+/* 安装包管理 / 安装包录入页 共用：内容对齐与页头动作。 */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+}
+
+.pageActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pageActionsEnd {
+  justify-content: flex-end;
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.actionLink:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.backLink:hover {
+  color: var(--accent-strong);
+}
+
+@media (max-width: 860px) {
+  .content {
+    width: calc(100% - 32px);
+    max-width: none;
+  }
+}

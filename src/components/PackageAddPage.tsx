@@ -1,52 +1,16 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { PageShell } from "./ui";
-import { PackagePanel, type PackageTarget } from "./PackagePanel";
+import { PackagePanel } from "./PackagePanel";
+import { RELEASE_TARGETS } from "./packageTargets";
+import pageStyles from "./PackagePages.module.css";
 import styles from "./ReleaseWorkspace.module.css";
 
 /**
- * 中心**托管**的安装包目录（`component` 即后端 `:component` 路径段）：
- * agentd 包 / gateway-stack 包 / galaxy-ops 包 / galaxy-flow 包。
- *
- * 这一页只管「包本身」：录入来源（镜像制品）、看当前与历史。
- * 把包装出去（升级安装 / 下发给网关）见「发布」页。
+ * 安装包录入：按组件录入来源（镜像制品）并查看该组件最近录入。
+ * 已托管包一览与状态管理在独立页「安装包管理」（`/packages`）。
  */
-const RELEASE_TARGETS: PackageTarget[] = [
-  {
-    component: "wist-gateway-stack",
-    name: "WarpGateWay",
-    tagline: "网关运行时",
-    subtitle: "网关运行时安装包（gateway-stack 部署包），供 Gateway 实例升级。",
-    artifactPlaceholder:
-      "https://artifacts.example.com/wist-gateway-stack/v3.1.0.tar.gz",
-  },
-  {
-    component: "wist-agentd",
-    name: "WistAgentd",
-    tagline: "Agent 服务",
-    subtitle: "Agent 服务安装包，供各 WarpGateWay 实例拉取。",
-    artifactPlaceholder: "https://artifacts.example.com/wist-agentd/v2.4.1",
-  },
-  {
-    component: "galaxy-ops",
-    name: "galaxy-ops",
-    tagline: "部署工具",
-    subtitle:
-      "galaxy-ops 部署工具包（网关执行器 `gops prj upgrade` 依赖）。",
-    artifactPlaceholder:
-      "https://artifacts.example.com/galaxy-ops/v0.18.2-aarch64-apple-darwin.tar.gz",
-  },
-  {
-    component: "galaxy-flow",
-    name: "galaxy-flow",
-    tagline: "工作流工具",
-    subtitle: "galaxy-flow 工作流工具包。",
-    artifactPlaceholder:
-      "https://artifacts.example.com/galaxy-flow/v0.15.1-aarch64-apple-darwin.tar.gz",
-  },
-];
-
-/** 包管理：录入/镜像各组件安装包，查看当前与历史托管记录。 */
-export function PackagePage() {
+export function PackageAddPage() {
   const [activeComponent, setActiveComponent] = useState(
     RELEASE_TARGETS[0].component,
   );
@@ -56,9 +20,16 @@ export function PackagePage() {
 
   return (
     <PageShell
-      title="包管理"
-      summary="管理中心托管的安装包：录入来源（镜像制品）、查看各组件当前版本与历史。把包装出去见「发布」。"
+      title="安装包录入"
+      summary="按组件录入来源（镜像制品）：版本号自动从包地址解析，摘要必填。已托管包一览见「安装包管理」。"
     >
+      <div className={pageStyles.content}>
+        <div className={pageStyles.pageActions}>
+          <Link className={pageStyles.backLink} to="/packages">
+            ← 返回包列表
+          </Link>
+        </div>
+      </div>
       <section className={styles.workspace}>
         <header className={styles.workspaceHeader}>
           <div>

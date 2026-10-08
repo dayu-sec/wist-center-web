@@ -1,30 +1,21 @@
 import {
   planStatusLabel,
   planStatusTone,
-  type RolloutTone,
 } from "@dayu-sec/wist-web-core/release";
 import {
   useAdvanceUpgradePlan,
   useApproveUpgradePlan,
   useUpgradePlans,
 } from "../hooks";
-import { Badge, ErrorBanner, LoadingDots, PageShell, type BadgeTone } from "./ui";
+import {
+  Badge,
+  ErrorBanner,
+  LoadingDots,
+  PageShell,
+  rolloutToneToBadge,
+} from "./ui";
 import { UpgradePlanEntries } from "./UpgradePlanEntries";
 import styles from "./UpgradePlanApprovePage.module.css";
-
-/** 共享口径的语气（ok/warn/crit/unknown）→ 本 app 的徽标色。 */
-function toneToBadge(tone: RolloutTone): BadgeTone {
-  switch (tone) {
-    case "ok":
-      return "green";
-    case "warn":
-      return "amber";
-    case "crit":
-      return "red";
-    default:
-      return "gray";
-  }
-}
 
 /** `spec` 是 `{"targets":[{"component","target_version"}]}`；解不出时原样展示。 */
 function specSummary(spec: string): string {
@@ -42,20 +33,31 @@ function specSummary(spec: string): string {
   }
 }
 
+/** 计划列表最多铺开多少条（按创建时间取最新的），避免历史计划把页面撑长。 */
+const MAX_VISIBLE_PLANS = 5;
+
 /**
- * 计划执行工作区：按计划列表逐项**批准**（draft → rolling，进入第一阶段）或**推进**
+ * 发布执行工作区：按计划列表逐项**批准**（draft → rolling，进入第一阶段）或**推进**
  * （rolling → 下一阶段）。两处人工闸门都落在这里 —— 金丝雀段一律人工确认。
  */
 export function UpgradePlanApprovePage() {
   const { data, isLoading } = useUpgradePlans();
   const plans = data?.data ?? [];
+  // 最新在前：接口不保证顺序，这里按 createdAt 倒序后只取最近 MAX_VISIBLE_PLANS 条。
+  const visiblePlans = [...plans]
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() -
+        new Date(left.createdAt).getTime(),
+    )
+    .slice(0, MAX_VISIBLE_PLANS);
   const approve = useApproveUpgradePlan();
   const advance = useAdvanceUpgradePlan();
   const busy = approve.isPending || advance.isPending;
 
   return (
     <PageShell
-      title="计划执行"
+      title="发布执行"
       summary="批准计划进入第一阶段，或按闸门人工推进到下一阶段（金丝雀段一律人工确认）。"
     >
       {isLoading && plans.length === 0 ? <LoadingDots /> : null}
@@ -63,7 +65,7 @@ export function UpgradePlanApprovePage() {
         <div className={styles.empty}>暂无灰度发布计划。</div>
       ) : (
         <div className={styles.list}>
-          {plans.map((plan) => {
+          {visiblePlans.map((plan) => {
             const total = plan.phases.reduce(
               (sum, phase) => sum + phase.targetIds.length,
               0,
@@ -82,7 +84,7 @@ export function UpgradePlanApprovePage() {
                         : ""}
                     </div>
                   </div>
-                  <Badge tone={toneToBadge(planStatusTone(plan.status))}>
+                  <Badge tone={rolloutToneToBadge(planStatusTone(plan.status))}>
                     {planStatusLabel(plan.status)}
                   </Badge>
                   {plan.status === "draft" ? (
@@ -112,6 +114,11 @@ export function UpgradePlanApprovePage() {
           })}
         </div>
       )}
+      {plans.length > MAX_VISIBLE_PLANS ? (
+        <p className={styles.limitNote}>
+          仅显示最新 {MAX_VISIBLE_PLANS} 条，共 {plans.length} 条计划。
+        </p>
+      ) : null}
       {approve.error ? (
         <ErrorBanner>批准失败：{String(approve.error)}</ErrorBanner>
       ) : null}

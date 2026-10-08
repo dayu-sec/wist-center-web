@@ -5,7 +5,8 @@ import { GatewayListPage } from "./components/GatewayListPage";
 import { GatewayDetailPage } from "./components/GatewayDetailPage";
 import { GatewayInstancePage } from "./components/GatewayInstancePage";
 import { GatewayInstanceDetailPage } from "./components/GatewayInstanceDetailPage";
-import { PackagePage } from "./components/PackagePage";
+import { PackageListPage } from "./components/PackageListPage";
+import { PackageAddPage } from "./components/PackageAddPage";
 import { ReleasePage } from "./components/ReleasePage";
 import { UpgradePlanApprovePage } from "./components/UpgradePlanApprovePage";
 
@@ -20,18 +21,21 @@ export function App() {
           path="/instance/:gatewayId"
           element={<GatewayInstanceDetailPage />}
         />
-        {/* 包管理（录入/托管包）与发布（把包装出去）分开：
-            发布 ① 升级安装（stack/gops/gx）复用原「升级计划」创建面板；
-            旧入口 /upgrade-plan 重定向到 /release，批准入口保持在 /upgrade-plan/approve。 */}
-        <Route path="/packages" element={<PackagePage />} />
+        {/* 安装包管理（已托管包列表 / 状态）与安装包录入分开：
+            /packages 看已托管包，/packages/add 录入来源（镜像制品）。
+            发布另见 /release（把包装出去）。 */}
+        <Route path="/packages" element={<PackageListPage />} />
+        <Route path="/packages/add" element={<PackageAddPage />} />
         <Route path="/release" element={<ReleasePage />} />
+        <Route path="/release/execute" element={<UpgradePlanApprovePage />} />
+        {/* 旧地址兼容：`/upgrade-plan` 系列统一重定向到新的发布路由。 */}
         <Route
           path="/upgrade-plan"
           element={<Navigate to="/release" replace />}
         />
         <Route
           path="/upgrade-plan/approve"
-          element={<UpgradePlanApprovePage />}
+          element={<Navigate to="/release/execute" replace />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

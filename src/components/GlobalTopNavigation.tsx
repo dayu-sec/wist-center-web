@@ -58,6 +58,17 @@ function IconPackage() {
   );
 }
 
+function IconPackageAdd() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <rect x="1.6" y="7.4" width="9.8" height="6.4" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M3.8 7.4V5.2h5.4v2.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M12.4 2.4v6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M9.4 5.4h6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconApprove() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
@@ -83,11 +94,17 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "发布与升级",
     items: [
-      { to: "/packages", label: "包管理", icon: <IconPackage />, end: true },
-      { to: "/release", label: "制定发布计划", icon: <IconRelease />, end: true },
+      { to: "/packages", label: "安装包管理", icon: <IconPackage />, end: true },
       {
-        to: "/upgrade-plan/approve",
-        label: "计划执行",
+        to: "/packages/add",
+        label: "安装包录入",
+        icon: <IconPackageAdd />,
+        end: true,
+      },
+      { to: "/release", label: "发布计划", icon: <IconRelease />, end: true },
+      {
+        to: "/release/execute",
+        label: "发布执行",
         icon: <IconApprove />,
       },
     ],

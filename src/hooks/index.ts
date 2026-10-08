@@ -22,13 +22,19 @@ import {
   fetchUpgradePlans,
   getAdminApiToken,
   publishRelease,
+  publishReleaseBatch,
+  resolveGitHubRelease,
   rotateGatewayLinkToken,
+  setReleaseStatus,
   type BindGatewayCustomerCommand,
   type CreateGatewayInstanceCommand,
   type CreateUpgradePlanCommand,
   type GetGatewayInitialConfigCommand,
   type PlanRefCommand,
+  type PublishReleaseBatchCommand,
   type PublishReleaseCommand,
+  type ReleasePackage,
+  type ReleaseStatus,
   type RotateGatewayLinkTokenCommand,
 } from "../api";
 
@@ -203,6 +209,52 @@ export function useReleasesForComponents(
   return versions;
 }
 
+/** 一条托管安装包 + 数据来源（安装包管理页汇总列表用）。 */
+export interface ManagedRelease extends ReleasePackage {
+  source: "real" | "example";
+}
+
+/**
+ * 汇总多个组件的托管安装包，返回扁平列表（新→旧；按组件顺序归并再按时间降序）。
+ *
+ * 与 `useReleases` 共用 `["releases", component]` 缓存键 —— 录入 / 改状态后失效即可同步。
+ */
+export function useAllReleases(components: readonly string[]): {
+  data: ManagedRelease[];
+  isLoading: boolean;
+  source: "real" | "example";
+} {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken());
+  const results = useQueries({
+    queries: components.map((component) => ({
+      queryKey: ["releases", component],
+      queryFn: () => fetchReleases(component),
+      refetchInterval: enabled ? 15_000 : 30_000,
+    })),
+  });
+  const records: ManagedRelease[] = [];
+  let source: "real" | "example" = "real";
+  components.forEach((component, index) => {
+    const result = results[index]?.data;
+    if (!result) return;
+    if (result.source === "example") source = "example";
+    for (const release of result.data) {
+      records.push({ ...release, component: release.component || component, source: result.source });
+    }
+  });
+  records.sort(
+    (left, right) =>
+      new Date(right.publishedAt).getTime() -
+      new Date(left.publishedAt).getTime(),
+  );
+  return {
+    data: records,
+    isLoading: results.some((result) => result.isLoading),
+    source,
+  };
+}
+
 export function useGatewayInstances() {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken());
@@ -279,6 +331,38 @@ export function usePublishRelease(component: string) {
     // 发布成功后刷新该组件的历史，立即反馈新版本已进入发布记录。
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["releases", component] }),
+  });
+}
+
+/** 多平台一次录入（galaxy-ops / galaxy-flow 三平台齐备），成功后刷新该组件历史。 */
+export function usePublishReleaseBatch(component: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: PublishReleaseBatchCommand) =>
+      publishReleaseBatch(component, command),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["releases", component] }),
+  });
+}
+
+/** 解析 GitHub Release（拉 tag + 多平台制品地址），供录入页一键填充。非写操作，不刷新缓存。 */
+export function useResolveGitHubRelease() {
+  return useMutation({
+    mutationFn: (releaseUrl: string) => resolveGitHubRelease(releaseUrl),
+  });
+}
+
+/** 改某组件某版本的托管状态（published / expired），成功后刷新该组件历史。 */
+export function useSetReleaseStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      component: string;
+      version: string;
+      status: ReleaseStatus;
+    }) => setReleaseStatus(vars.component, vars.version, vars.status),
+    onSuccess: (_data, vars) =>
+      queryClient.invalidateQueries({ queryKey: ["releases", vars.component] }),
   });
 }
 

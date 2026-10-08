@@ -14,6 +14,8 @@
 
 ### 变更
 
+- **包管理「期望摘要」改为必填**（不再可选）：4 个组件的录入表单都要填 `sha256`（64 位十六进制，
+  可带 `sha256:` 前缀），提交前本地校验形态并给出可读原因；请求体始终带 `expected_sha256`。
 - 页面/入口改名：`发布` → **制定发布计划**（`/release`）、`批准升级计划` → **计划执行**
   （`/upgrade-plan/approve`）；导航分组「发布」→「发布与升级」。
 - 清理死代码：`UpgradePlanApprovePanel`、`GatewayConfigPage` / `GatewayInitialConfigPanel`；

@@ -172,17 +172,34 @@ export interface GatewayInitialConfig {
   enrollmentTokenId: string;
 }
 
-export interface WistAgentdRelease {
-  version: string;
-  artifactUrl: string;
-  status: string;
-  publishedAt: string;
+/**
+ * 安装包里的一个**制品**：一个平台 + 内容摘要 + 取件地址。
+ *
+ * 平台由中心从包自身解析（二进制包文件名 / 包内目录名切 target-triple）；
+ * 部署栈类包解析不出时为 `null`（界面显示「通用」）。
+ */
+export interface ReleaseArtifact {
+  /** 目标平台（target-triple）；无平台概念的包为 null。 */
+  platform: string | null;
+  /** 制品内容 sha256（裸小写 hex）；老记录可能为空串。 */
+  sha256: string;
+  /** 取件地址（中心镜像后的下载 URL）。 */
+  source: string;
 }
 
-export interface WarpGateWayRelease {
+/**
+ * 一个**安装包**：一个版本 + 多个平台制品（galaxy-ops / galaxy-flow 一次录入三平台）。
+ *
+ * 目录字段 `component` 与托管字段 `status` / `publishedAt` 由中心外挂（`ReleasePackageRecord`）。
+ */
+export interface ReleasePackage {
+  /** 组件（目录键，如 `galaxy-ops`）。 */
+  component: string;
   version: string;
-  artifactUrl: string;
+  artifacts: ReleaseArtifact[];
+  /** 包级托管状态：`published`（在用）/ `expired`（已过期）。 */
   status: string;
+  /** 首次录入时间（包级，取组内最早）。 */
   publishedAt: string;
 }
 
@@ -288,8 +305,12 @@ export interface PublishReleaseCommand {
   /** 版本号可省：不填时由中心从**包地址**（文件名 / 包内目录名）自动解析。 */
   version?: string;
   artifactUrl: string;
-  /** 可选的期望内容摘要（sha256，可带 `sha256:` 前缀）：中心核对读到的字节，不符即拒。 */
-  expectedSha256?: string;
+  /**
+   * 期望内容摘要（sha256，可带 `sha256:` 前缀）：中心拿块字节核对，不符即拒。
+   *
+   * **必填**：包的 sha256 是内容身份，缺了就没有可校验的事实来源（页面也按必填拦）。
+   */
+  expectedSha256: string;
   requestedBy: string;
 }
 
@@ -687,13 +708,22 @@ function normalizeGatewayInitialConfig(payload: any): GatewayInitialConfig {
   };
 }
 
-function normalizeRelease(payload: any): WistAgentdRelease {
+function normalizeReleaseArtifact(payload: any): ReleaseArtifact {
   return {
+    platform: nullableString(payload, "platform"),
+    sha256: optionalString(pick(payload, "sha256")) ?? "",
+    source: requiredString(pick(payload, "source"), "artifact.source"),
+  };
+}
+
+function normalizePackage(payload: any): ReleasePackage {
+  const rawArtifacts = pick(payload, "artifacts");
+  return {
+    component: optionalString(pick(payload, "component")) ?? "",
     version: requiredString(payload.version, "release.version"),
-    artifactUrl: requiredString(
-      pick(payload, "artifact_url", "artifactUrl"),
-      "release.artifactUrl",
-    ),
+    artifacts: Array.isArray(rawArtifacts)
+      ? rawArtifacts.map(normalizeReleaseArtifact)
+      : [],
     status: requiredString(payload.status, "release.status"),
     publishedAt: requiredString(
       pick(payload, "published_at", "publishedAt"),
@@ -1555,23 +1585,30 @@ export async function fetchGatewayInitialConfig(
 
 export async function fetchReleases(
   component: string,
-): Promise<ExampleResult<WistAgentdRelease[]>> {
+): Promise<ExampleResult<ReleasePackage[]>> {
   const path = `/api/v1/admin/releases/${encodeURIComponent(component)}`;
   return fetchOrFallback(path, () => exampleReleases(component)).then(
     async (result) => {
       if (result.source !== "real") return result;
       const raw = result.data as any;
       const items = Array.isArray(raw) ? raw : [];
-      return { ...result, data: items.map(normalizeRelease) };
+      return { ...result, data: items.map(normalizePackage) };
     },
   );
 }
 
-function exampleReleases(component: string): WistAgentdRelease[] {
+function exampleReleases(component: string): ReleasePackage[] {
   return [
     {
+      component,
       version: "v2.4.1",
-      artifactUrl: `http://127.0.0.1:3100/api/v1/releases/artifact/${component}/v2.4.1/${component}-v2.4.1.bin`,
+      artifacts: [
+        {
+          platform: "x86_64-unknown-linux-musl",
+          sha256: "0".repeat(64),
+          source: `http://127.0.0.1:3100/api/v1/releases/artifact/${component}/v2.4.1/${component}-v2.4.1-x86_64-unknown-linux-musl.tar.gz`,
+        },
+      ],
       status: "published",
       publishedAt: new Date().toISOString(),
     },
@@ -1587,7 +1624,7 @@ function exampleReleases(component: string): WistAgentdRelease[] {
 export async function publishRelease(
   component: string,
   command: PublishReleaseCommand,
-): Promise<ExampleResult<WistAgentdRelease>> {
+): Promise<ExampleResult<ReleasePackage>> {
   const raw = await requestJson<any>(
     `/api/v1/admin/releases/${encodeURIComponent(component)}`,
     {
@@ -1595,12 +1632,107 @@ export async function publishRelease(
       body: JSON.stringify({
         version: command.version?.trim() || undefined,
         artifact_url: command.artifactUrl,
-        expected_sha256: command.expectedSha256?.trim() || undefined,
+        expected_sha256: command.expectedSha256.trim(),
         requested_by: command.requestedBy,
       }),
     },
   );
-  return { source: "real", data: normalizeRelease(raw) };
+  return { source: "real", data: normalizePackage(raw) };
+}
+
+/** 托管状态取值：`published`（在用）/ `expired`（已过期）。 */
+export type ReleaseStatus = "published" | "expired";
+
+/**
+ * 改某版本的托管状态（如把旧版本标为 `expired`）。
+ *
+ * **刻意不回落示例**：写操作，失败就让它冒出来（与 `publishRelease` 同取舍）。
+ */
+export async function setReleaseStatus(
+  component: string,
+  version: string,
+  status: ReleaseStatus,
+): Promise<ExampleResult<ReleasePackage>> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/releases/${encodeURIComponent(component)}/${encodeURIComponent(version)}/status`,
+    { method: "POST", body: JSON.stringify({ status }) },
+  );
+  return { source: "real", data: normalizePackage(raw) };
+}
+
+/** 多平台批量录入的单个制品（平台由中心从包自身解析，不由前端声明）。 */
+export interface BatchReleaseArtifact {
+  artifactUrl: string;
+  expectedSha256: string;
+}
+
+export interface PublishReleaseBatchCommand {
+  requestedBy: string;
+  artifacts: BatchReleaseArtifact[];
+}
+
+/**
+ * 一次录入**同一版本**的多个平台制品（galaxy-ops / galaxy-flow 必须 macOS-ARM / Linux-ARM /
+ * Linux-X86 三平台齐备）。中心先全部下载校验，任一不合格即整体拒绝。
+ *
+ * **刻意不回落示例**：写操作，失败要冒出来（与 `publishRelease` 同取舍）。
+ */
+export async function publishReleaseBatch(
+  component: string,
+  command: PublishReleaseBatchCommand,
+): Promise<ExampleResult<ReleasePackage>> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/releases/${encodeURIComponent(component)}/batch`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        requested_by: command.requestedBy,
+        artifacts: command.artifacts.map((artifact) => ({
+          artifact_url: artifact.artifactUrl,
+          expected_sha256: artifact.expectedSha256,
+        })),
+      }),
+    },
+  );
+  // 中心回**一个安装包**（version + 多平台 artifacts），不是制品数组。
+  return { source: "real", data: normalizePackage(raw) };
+}
+
+/** GitHub Release 里的一个资产（含平台槽位与 sha256）。 */
+export interface ResolvedGitHubAsset {
+  name: string;
+  artifactUrl: string;
+  sha256: string | null;
+  platform: string | null;
+}
+
+export interface ResolvedGitHubRelease {
+  version: string;
+  assets: ResolvedGitHubAsset[];
+}
+
+/**
+ * 解析 GitHub Release 页面地址：拉出 tag（版本）与各平台制品地址（含 sha256），供录入页一键填充。
+ *
+ * **刻意不回落示例**：这是解析请求，失败要冒出来。
+ */
+export async function resolveGitHubRelease(
+  releaseUrl: string,
+): Promise<ResolvedGitHubRelease> {
+  const raw = await requestJson<any>("/api/v1/admin/github-release/resolve", {
+    method: "POST",
+    body: JSON.stringify({ release_url: releaseUrl }),
+  });
+  const assets = Array.isArray(raw?.assets) ? raw.assets : [];
+  return {
+    version: typeof raw?.version === "string" ? raw.version : "",
+    assets: assets.map((asset: any) => ({
+      name: String(asset?.name ?? ""),
+      artifactUrl: String(asset?.artifact_url ?? asset?.artifactUrl ?? ""),
+      sha256: typeof asset?.sha256 === "string" ? asset.sha256 : null,
+      platform: typeof asset?.platform === "string" ? asset.platform : null,
+    })),
+  };
 }
 
 export async function fetchUpgradePlans(): Promise<

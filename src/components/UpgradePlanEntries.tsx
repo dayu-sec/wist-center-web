@@ -2,25 +2,10 @@ import {
   countEntries,
   entryStatusLabel,
   entryStatusTone,
-  type RolloutTone,
 } from "@dayu-sec/wist-web-core/release";
 import { useUpgradePlan } from "../hooks";
-import { Badge, LoadingDots, formatDateTime, type BadgeTone } from "./ui";
+import { Badge, LoadingDots, formatDateTime, rolloutToneToBadge } from "./ui";
 import styles from "./UpgradePlanEntries.module.css";
-
-/** 共享口径的语气（ok/warn/crit/unknown）→ 本 app 的徽标色。 */
-function toneToBadge(tone: RolloutTone): BadgeTone {
-  switch (tone) {
-    case "ok":
-      return "green";
-    case "warn":
-      return "amber";
-    case "crit":
-      return "red";
-    default:
-      return "gray";
-  }
-}
 
 /**
  * 一份计划的**逐目标进度**（`RolloutPlanView`：plan + entries）。
@@ -77,7 +62,7 @@ export function UpgradePlanEntries({
         {entries.map((entry) => (
           <li key={entry.targetId} className={styles.entry}>
             <span className={styles.target}>{entry.targetId}</span>
-            <Badge tone={toneToBadge(entryStatusTone(entry.status))}>
+            <Badge tone={rolloutToneToBadge(entryStatusTone(entry.status))}>
               {entryStatusLabel(entry.status)}
             </Badge>
             {entry.detail ? (

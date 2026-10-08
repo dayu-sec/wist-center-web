@@ -3,6 +3,7 @@ import type {
   InputHTMLAttributes,
   ButtonHTMLAttributes,
 } from "react";
+import type { RolloutTone } from "@dayu-sec/wist-web-core/release";
 import styles from "./ui.module.css";
 
 export function formatDateTime(value: string | Date): string {
@@ -252,6 +253,49 @@ export function ReceiptCard({
 
 export function ErrorBanner({ children }: { children: ReactNode }) {
   return <div className={styles.errorBanner}>{children}</div>;
+}
+
+/** 托管记录状态文案（published → 已录入 / expired → 已过期）。 */
+export function releaseStatusLabel(status: string): string {
+  switch (status) {
+    case "published":
+      return "已录入";
+    case "expired":
+      return "已过期";
+    default:
+      return status;
+  }
+}
+
+/** 托管记录状态徽标色调。 */
+export function releaseStatusTone(status: string): BadgeTone {
+  switch (status) {
+    case "published":
+      return "green";
+    case "expired":
+      return "gray";
+    default:
+      return "gray";
+  }
+}
+
+/** 灰度发布计划的**共享口径语气**（`RolloutTone`）→ 本 app 的徽标色。 */
+export function rolloutToneToBadge(tone: RolloutTone): BadgeTone {
+  switch (tone) {
+    case "ok":
+      return "green";
+    case "warn":
+      return "amber";
+    case "crit":
+      return "red";
+    default:
+      return "gray";
+  }
+}
+
+/** 平台展示：解析不出目标平台（部署栈类包）时显示「通用」。 */
+export function platformLabel(platform: string | null | undefined): string {
+  return platform && platform.length > 0 ? platform : "通用";
 }
 
 export function LoadingDots() {
