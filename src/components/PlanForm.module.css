@@ -1,4 +1,5 @@
-/* 创建升级计划面板：多目标 + 范围多选 + 灰度阶段（选阶段数自动分配）。 */
+/* 发布计划表单的**共享**样式：① 升级安装（`UpgradePlanCreatePanel`）与 ② Agent 包下发
+   （`AgentPackagePushPanel`）两个面板共用（范围多选 + 灰度阶段 + 执行约束 + 回执）。 */
 
 .block {
   margin-bottom: 14px;
@@ -95,34 +96,56 @@
   gap: 6px;
 }
 
-.checkbox {
+/* 目标卡片：**只读**（目标自动确定，不再手勾），但仍然一张卡一台 —— 谁进、谁被排除一眼看完。 */
+.gatewayCard {
   display: flex;
-  align-items: center;
-  gap: 7px;
+  flex-direction: column;
+  gap: 2px;
   padding: 7px 9px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   font-size: 12.5px;
   color: var(--text-2);
-  cursor: pointer;
 }
 
-.checkbox:hover {
-  border-color: var(--border-strong);
+.gatewayCardId {
+  overflow-wrap: anywhere;
   color: var(--text);
+  font-weight: 600;
 }
 
-.checkboxSub {
-  display: block;
+.gatewayCardSub {
   font-size: 11px;
   color: var(--text-3);
 }
 
-.blockActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+/* 被排除的离线网关：虚线 + 降级，与「进了目标」的卡明显分开。 */
+.gatewayCardExcluded {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--text-4);
+  opacity: 0.75;
+}
+
+.gatewayCardExcluded .gatewayCardId {
+  color: var(--text-3);
+}
+
+/* 示例数据告警：整块红底，别再让「内置示例机队」被当成自己的机队。 */
+.exampleBanner {
+  padding: 9px 11px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.exampleBanner strong {
+  color: var(--crit);
 }
 
 .sectionNote {

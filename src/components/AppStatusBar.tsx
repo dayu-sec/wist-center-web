@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { matchPath, useLocation } from "react-router-dom";
 import { ADMIN_AUTH_CHANGED_EVENT, getAdminApiToken } from "../api";
+import { useExampleFallbackCount } from "../hooks";
 import styles from "./AppStatusBar.module.css";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -53,6 +54,8 @@ export function AppStatusBar() {
   const fetching = useIsFetching();
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [hasToken, setHasToken] = useState(() => Boolean(getAdminApiToken()));
+  // 缓存里有多少查询回落到了示例数据（真实来源，而不是「有没有手填 token」）。
+  const exampleFallbacks = useExampleFallbackCount();
 
   useEffect(() => {
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
@@ -97,29 +100,32 @@ export function AppStatusBar() {
       </nav>
 
       <div className={styles.right}>
+        {/*
+          说「示例数据」的依据是**接口自己的回落标记**（`source === "example"`），不是
+          「浏览器里有没有手填 Token」—— dev 代理在服务端补 token 时页面没有 token 也是真数据，
+          按 token 判会把真机队说成示例、也会把示例说成真的（后者更危险：会照着一份假机队建计划）。
+        */}
         <span
           className={
-            hasToken
-              ? `${styles.pill} ${styles.pillLive}`
-              : `${styles.pill} ${styles.pillIdle}`
+            exampleFallbacks > 0
+              ? `${styles.pill} ${styles.pillIdle}`
+              : `${styles.pill} ${styles.pillLive}`
           }
           title={
-            hasToken
-              ? "每 5 秒自动拉取一次网关与指标数据"
-              : "未设置 Admin Token，当前以 30 秒间隔读取示例数据"
+            exampleFallbacks > 0
+              ? `${exampleFallbacks} 个查询回落到内置示例数据：后端管理接口不可达或未鉴权（左侧可填 Admin Token）`
+              : "数据来自中心：每 5 秒自动拉取一次网关与指标"
           }
         >
           <span
             className={syncing ? styles.dotSyncing : styles.dot}
             aria-hidden="true"
           />
-          {hasToken
-            ? syncing
-              ? "同步中"
-              : "自动刷新 5s"
-            : syncing
-              ? "同步中"
-              : "示例数据 30s"}
+          {syncing
+            ? "同步中"
+            : exampleFallbacks > 0
+              ? `示例数据 ×${exampleFallbacks}`
+              : "自动刷新 5s"}
         </span>
 
         <span className={styles.stamp}>

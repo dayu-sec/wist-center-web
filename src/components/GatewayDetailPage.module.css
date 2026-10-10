@@ -125,6 +125,18 @@
   font-weight: 600;
 }
 
+/* 卡片里的一段说明（不是计数胶囊：`sectionMeta` 是给右上角计数用的）。 */
+.cardNote {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.cardNote a {
+  text-decoration: none;
+}
+
 .empty {
   padding: 34px 20px;
   border: 1px dashed var(--border-strong);

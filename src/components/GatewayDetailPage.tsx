@@ -50,7 +50,7 @@ export function GatewayDetailPage() {
   return (
     <PageShell
       title={gateway ? `网关 ${gateway.gatewayId}` : "网关详情"}
-      summary="查看该网关的状态与上报的 Agent 状态。"
+      summary="查看该网关的状态与上报的 Agent 状态；重新安装所需的接入材料在「接入材料」页。"
     >
       <Link to="/" className={styles.backLink}>
         ← 返回网关态势
@@ -143,6 +143,33 @@ export function GatewayDetailPage() {
                 loading={isHistoryLoading}
                 source={historyData?.source}
               />
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/*
+        这台页面只有**已上报**的网关才进得来（状态接口对「从未上报」回 404，`gateway` 就不会有值），
+        也就是**已经接入成功**的网关 —— 所以这里不再铺「安装代码 / 接入券」：那两样是给
+        **还没接入**的机器（或重装）用的。要看/要重装，去接入材料页（那边打开会轮换接入券）。
+      */}
+      {gateway ? (
+        <section className={styles.section}>
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.headerRow}>
+                <span className={styles.sectionTitle}>已接入，不需要安装材料</span>
+              </div>
+              <p className={styles.cardNote}>
+                这台网关已完成接入并在上报（上面的状态就是它自己报的）。脚本安装命令与一次性接入券
+                只在<strong>重新安装这台机器</strong>时才用得到。
+              </p>
+              <Link
+                className={styles.backLink}
+                to={`/instance/${encodeURIComponent(gateway.gatewayId)}`}
+              >
+                接入材料（打开会轮换接入券，旧券立即作废）<span aria-hidden="true"> →</span>
+              </Link>
             </div>
           </div>
         </section>

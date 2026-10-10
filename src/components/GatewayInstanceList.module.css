@@ -54,6 +54,17 @@
   font-weight: 700;
 }
 
+/* 离线计数：接入完成但掉线是「需要处理」，用危险色提示。 */
+.summaryItemAlert {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.summaryItemAlert strong {
+  color: var(--crit);
+}
+
 .groups {
   display: flex;
   flex-direction: column;
@@ -113,6 +124,19 @@
   gap: 10px;
 }
 
+/* 一行 = 卡片 + 行级动作（归档）。动作必须在 `<a>` **外面**：按钮嵌在链接里是非法结构，
+   点归档会顺手导航到详情页。 */
+.itemWrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.itemWrap .item {
+  flex: 1 1 auto;
+}
+
 .item {
   display: flex;
   align-items: center;
@@ -144,6 +168,11 @@
   border-color: var(--crit-border);
 }
 
+/* 已接入但掉线：与网关态势页一致，用危险色描边而不是整块染色。 */
+.item[data-runtime="offline"] {
+  border-color: var(--crit-border);
+}
+
 .itemMain {
   min-width: 0;
 }
@@ -161,6 +190,83 @@
   overflow-wrap: anywhere;
   color: var(--text-3);
   font-size: 12px;
+}
+
+/* 掉线 / 从未上报时的最后上报时间，提示问题线索。 */
+.lastSeen {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: var(--crit);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* 已归档的行：整块降级为「收起来的历史」，不再用离线红。—— 归档是标记，不是故障。 */
+.item[data-archived="true"] {
+  border-color: var(--border);
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.archivedHint {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* 行级「归档 / 取消归档」：跟在卡片右侧，次要比重，不抢卡片本身的点击区。 */
+.archiveButton {
+  flex: 0 0 auto;
+  align-self: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.archiveButton:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-3);
+  color: var(--accent-strong);
+}
+
+.archiveButton:disabled {
+  border-color: var(--border-strong);
+  background: var(--border-strong);
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+/* 「显示已归档」开关：与计数胶囊同排，弱化成一条可点的说明。 */
+.archivedToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.archivedToggle input {
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .itemAside {

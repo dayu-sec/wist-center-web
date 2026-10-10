@@ -5,10 +5,6 @@
 // 后端接口尚未实现时，请求失败自动回退到 example 数据（source: "example"），
 // 保证前端独立可渲染；接入真实后端后自动切换为 "real"。
 
-// 离线示例与服务端用**同一套**阶梯 / 制品口径（单一真源在 `@dayu-sec/wist-web-core`，
-// 权威仍在 Rust 侧 `wist-release`）。
-import { planPhases } from "@dayu-sec/wist-web-core/release";
-
 // 制品来源的版本粗解析也收到共享包里（与 `PackagePanel` 同一个）。
 export { versionFromArtifactUrl } from "@dayu-sec/wist-web-core/artifact";
 
@@ -121,6 +117,8 @@ export interface GatewayInstance {
   initializedAt: string | null;
   /** 控制中心生成的不含凭证初始化入口；旧版本接口可能不返回。 */
   initUrl?: string;
+  /** 归档时刻；`null` = 未归档。归档是**标记**（默认视图隐藏、可恢复），不是删除。 */
+  archivedAt: string | null;
 }
 
 /** 网关实例安装指引（创建后交付给操作者）。 */
@@ -134,6 +132,10 @@ export interface GatewayInstallInfo {
   initCurl: string;
   /** 控制中心 CA 信任证书；未启用 TLS 时为空。 */
   trustBundlePem: string | null;
+  /** 脚本安装命令（`curl ... | bash`）：在目标主机装 gops/gx 并拉起 gateway-stack；旧后端可能不返回。 */
+  installScriptCommand?: string;
+  /** 前置环境准备命令（`curl ... | bash`）：补 tar/docker/compose；旧后端可能不返回。 */
+  prepareCommand?: string;
 }
 
 /** 创建网关实例返回：**仅实例视图**。接入凭据不在 create 响应里交付（设计 §8）。 */
@@ -256,6 +258,15 @@ export interface RolloutPlanDetail {
   entries: RolloutPlanEntry[];
 }
 
+/**
+ * 「Agent 包下发」（发布 ②）的计划动作值。
+ *
+ * 与 Rust 侧 `wist_control::ACTION_PUSH_AGENT_PACKAGE` / `wist-gwlinkd` **同值** —— 两边各钉一手，
+ * 漂移会把 ② 静默当成 `upgrade`（拿 agentd 包去跑 gops）。见设计
+ * `edge/agent-package-push-to-gateways.md`。
+ */
+export const AGENT_PACKAGE_PUSH_ACTION = "push-agent-package";
+
 /** 拼 `upgrade` 动作的 `spec`（与中心/网关两端的计划口径同形）。 */
 export function jsonUpgradeSpec(targets: UpgradeTarget[]): string {
   return JSON.stringify({
@@ -315,7 +326,7 @@ export interface PublishReleaseCommand {
 }
 
 export interface CreateUpgradePlanCommand {
-  /** 动作面：今天只有 `upgrade`。 */
+  /** 动作面：`upgrade` / [`AGENT_PACKAGE_PUSH_ACTION`]（② Agent 包下发）。 */
   action: string;
   /** 动作参数（JSON 字符串）；`upgrade` 用 `jsonUpgradeSpec` 从结构化目标拼。 */
   spec: string;
@@ -338,6 +349,12 @@ export interface PlanRefCommand {
   planId: string;
 }
 
+/** 重派一份计划的失败目标；`targetIds` 省略 / 为空 = 该计划里**所有**失败目标。 */
+export interface RetryPlanCommand {
+  planId: string;
+  targetIds?: string[];
+}
+
 // ── 结果信封：数据 + 来源标记 ──
 
 export interface ExampleResult<T> {
@@ -358,14 +375,63 @@ let adminApiToken: string | null =
 
 export class ApiError extends Error {
   readonly status: number;
+  /** 稳定的机器码：来自中心的 `{ "error": { "code", "message" } }` 信封（可选）。 */
+  readonly code?: string;
+  /** 可展示的短文案：信封里的 `message`（非信封响应回落为原文）。 */
+  readonly detail?: string;
   readonly retryAfterSeconds?: number;
 
-  constructor(status: number, path: string, retryAfterSeconds?: number) {
-    super(`HTTP ${status} ${path}`);
+  constructor(
+    status: number,
+    path: string,
+    options: {
+      code?: string;
+      detail?: string;
+      retryAfterSeconds?: number;
+    } = {},
+  ) {
+    super(
+      options.detail
+        ? `HTTP ${status} ${path}：${options.detail}`
+        : `HTTP ${status} ${path}`,
+    );
     this.name = "ApiError";
     this.status = status;
-    this.retryAfterSeconds = retryAfterSeconds;
+    this.code = options.code;
+    this.detail = options.detail;
+    this.retryAfterSeconds = options.retryAfterSeconds;
   }
+}
+
+/** 读中心的错误信封 `{ "error": { code, message } }`；非信封（旧式纯文本）回落为原文。 */
+async function readApiError(
+  response: Response,
+): Promise<{ code?: string; detail?: string }> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    return {};
+  }
+  if (!text) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(text) as {
+      error?: { code?: unknown; message?: unknown };
+    };
+    const envelope = parsed?.error;
+    if (envelope && typeof envelope === "object") {
+      return {
+        code: typeof envelope.code === "string" ? envelope.code : undefined,
+        detail:
+          typeof envelope.message === "string" ? envelope.message : undefined,
+      };
+    }
+  } catch {
+    // 不是 JSON：当作纯文本文案展示。
+  }
+  return { detail: text };
 }
 
 export function isRateLimitedError(error: unknown): error is ApiError {
@@ -383,18 +449,20 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
+    const { code, detail } = await readApiError(response);
     if (response.status === 429) {
       const retryAfter = Number.parseInt(
         response.headers.get("Retry-After") ?? "",
         10,
       );
-      throw new ApiError(
-        response.status,
-        path,
-        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60,
-      );
+      throw new ApiError(response.status, path, {
+        code,
+        detail,
+        retryAfterSeconds:
+          Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60,
+      });
     }
-    throw new ApiError(response.status, path);
+    throw new ApiError(response.status, path, { code, detail });
   }
   return (await response.json()) as T;
 }
@@ -568,7 +636,11 @@ function normalizeGatewayStatusView(payload: any): GatewayStatusView {
       "disk_usage_percent",
       "diskUsagePercent",
     ),
-    diskTotalBytes: nullableNumber(payload, "disk_total_bytes", "diskTotalBytes"),
+    diskTotalBytes: nullableNumber(
+      payload,
+      "disk_total_bytes",
+      "diskTotalBytes",
+    ),
     diskAvailableBytes: nullableNumber(
       payload,
       "disk_available_bytes",
@@ -628,6 +700,18 @@ function normalizeGatewayInstallInfo(payload: any): GatewayInstallInfo {
       pick(payload, "trust_bundle_pem", "trustBundlePem") == null
         ? null
         : String(pick(payload, "trust_bundle_pem", "trustBundlePem")),
+    installScriptCommand: (() => {
+      const raw = pick(
+        payload,
+        "install_script_command",
+        "installScriptCommand",
+      );
+      return raw == null ? undefined : String(raw);
+    })(),
+    prepareCommand: (() => {
+      const raw = pick(payload, "prepare_command", "prepareCommand");
+      return raw == null ? undefined : String(raw);
+    })(),
   };
 }
 
@@ -660,6 +744,11 @@ function normalizeGatewayInstance(payload: any): GatewayInstance {
       rawInitUrl === null || rawInitUrl === undefined
         ? undefined
         : String(rawInitUrl),
+    // 归档时刻（`null` = 未归档）。归档是**标记**：默认视图不带它，`include_archived=true` 才有。
+    archivedAt: (() => {
+      const raw = pick(payload, "archived_at", "archivedAt");
+      return raw === null || raw === undefined ? null : String(raw);
+    })(),
   };
 }
 
@@ -763,7 +852,9 @@ function normalizeRolloutPlan(payload: any): RolloutPlan {
       pick(payload, "timeout_seconds", "timeoutSeconds"),
       "plan.timeoutSeconds",
     ),
-    phases: Array.isArray(rawPhases) ? rawPhases.map(normalizeRolloutPhase) : [],
+    phases: Array.isArray(rawPhases)
+      ? rawPhases.map(normalizeRolloutPhase)
+      : [],
     batchSize: requiredNumber(
       pick(payload, "batch_size", "batchSize"),
       "plan.batchSize",
@@ -1005,10 +1096,18 @@ function normalizeGatewayHistory(
           online: nullableNumber(item, "online"),
           memoryBytes: nullableNumber(item, "memory_bytes", "memoryBytes"),
           cpuPercent: nullableNumber(item, "cpu_percent", "cpuPercent"),
-          uptimeSeconds: nullableNumber(item, "uptime_seconds", "uptimeSeconds"),
+          uptimeSeconds: nullableNumber(
+            item,
+            "uptime_seconds",
+            "uptimeSeconds",
+          ),
           agentCount: nullableNumber(item, "agent_count", "agentCount"),
           onlineAgents: nullableNumber(item, "online_agents", "onlineAgents"),
-          offlineAgents: nullableNumber(item, "offline_agents", "offlineAgents"),
+          offlineAgents: nullableNumber(
+            item,
+            "offline_agents",
+            "offlineAgents",
+          ),
           lastSeenLagSeconds: nullableNumber(
             item,
             "last_seen_lag_seconds",
@@ -1225,6 +1324,7 @@ function exampleGatewayInstance(
       lifecycleState: "Provisioned",
       createdAt: new Date().toISOString(),
       initializedAt: null,
+      archivedAt: null,
     },
   };
 }
@@ -1252,77 +1352,36 @@ function exampleInitialConfig(
   };
 }
 
-function exampleUpgradePlan(command: CreateUpgradePlanCommand): RolloutPlan {
-  // 离线示例：按与服务端**同一套**阶梯口径（权威在 `wist-release::rollout`）算出阶段，
-  // 免得演示数据与真实回执长得不一样。
-  const { phases } = planPhases(command.targetIds, command.phaseCount);
-  return {
-    planId: `plan-${Math.random().toString(36).slice(2, 8)}`,
-    action: command.action,
-    spec: command.spec,
-    deadlineAt: command.deadlineAt,
-    timeoutSeconds: command.timeoutSeconds,
-    phases: phases.map((phase, index) => ({
-      phaseIndex: phase.index,
-      targetIds: phase.targetIds,
-      advanceRule: index === 0 ? "manual" : "all_succeeded",
-      status: "pending",
-    })),
-    batchSize: command.batchSize,
-    currentPhase: 0,
-    status: "draft",
-    createdBy: "admin",
-    createdAt: new Date().toISOString(),
-    approvedBy: null,
-    approvedAt: null,
-  };
-}
-
-/** 示例：批准/推进后的计划形状（离线演示用，字段尽量真实）。 */
-function examplePlanRef(
-  command: PlanRefCommand,
-  status: string,
-  currentPhase: number,
-): RolloutPlan {
-  return {
-    planId: command.planId,
-    action: "upgrade",
-    spec: "{\"targets\":[]}",
-    deadlineAt: null,
-    timeoutSeconds: 0,
-    phases: [],
-    batchSize: 0,
-    currentPhase,
-    status,
-    createdBy: "admin",
-    createdAt: new Date().toISOString(),
-    approvedBy: "admin",
-    approvedAt: new Date().toISOString(),
-  };
-}
-
 // ── 接口调用 ──
 
-export async function fetchGatewayStatusView(): Promise<
-  ExampleResult<GatewayStatusView[]>
-> {
-  return fetchOrFallback(
-    "/api/v1/admin/gateways/status",
-    exampleGatewayStatusView,
-  ).then(async (result) => {
-    if (result.source !== "real") return result;
-    const raw = result.data as any;
-    const items = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.statuses)
-        ? raw.statuses
-        : Array.isArray(raw?.gateways)
-          ? raw.gateways
-          : raw?.status
-            ? [raw.status]
-            : [];
-    return { ...result, data: items.map(normalizeGatewayStatusView) };
-  });
+/**
+ * 网关状态视图（态势页的数据源）。
+ *
+ * `includeArchived` = **带上已归档**的网关：默认不带 —— 归档就是把死掉的网关从日常视图里收起来；
+ * 想看/恢复它们时才显式带上（实例页的「显示已归档」开关用这个）。
+ */
+export async function fetchGatewayStatusView(
+  includeArchived = false,
+): Promise<ExampleResult<GatewayStatusView[]>> {
+  const path = includeArchived
+    ? "/api/v1/admin/gateways/status?include_archived=true"
+    : "/api/v1/admin/gateways/status";
+  return fetchOrFallback(path, exampleGatewayStatusView).then(
+    async (result) => {
+      if (result.source !== "real") return result;
+      const raw = result.data as any;
+      const items = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.statuses)
+          ? raw.statuses
+          : Array.isArray(raw?.gateways)
+            ? raw.gateways
+            : raw?.status
+              ? [raw.status]
+              : [];
+      return { ...result, data: items.map(normalizeGatewayStatusView) };
+    },
+  );
 }
 
 export async function fetchGatewayList(): Promise<
@@ -1340,18 +1399,38 @@ export async function fetchGatewayList(): Promise<
   );
 }
 
-export async function fetchGatewayInstances(): Promise<
-  ExampleResult<GatewayInstance[]>
-> {
-  return fetchOrFallback(
-    "/api/v1/admin/gateways/instances",
-    exampleGatewayInstances,
-  ).then(async (result) => {
+/** 实例总览；`includeArchived = true` 时把**已归档**的实例也带回来（默认隐藏）。 */
+export async function fetchGatewayInstances(
+  includeArchived = false,
+): Promise<ExampleResult<GatewayInstance[]>> {
+  const path = includeArchived
+    ? "/api/v1/admin/gateways/instances?include_archived=true"
+    : "/api/v1/admin/gateways/instances";
+  return fetchOrFallback(path, exampleGatewayInstances).then(async (result) => {
     if (result.source !== "real") return result;
     const raw = result.data as any;
     const items = Array.isArray(raw) ? raw : [];
     return { ...result, data: items.map(normalizeGatewayInstance) };
   });
+}
+
+/**
+ * 归档 / 取消归档一台网关（`AdminSetGatewayArchived`）。
+ *
+ * 归档是**标记**：默认视图不再显示它，状态/历史/生命周期全留，`archived: false` 随时恢复。
+ * 中心**只受理离线网关**（在线的不该被藏起来）→ 在线时回 409。
+ *
+ * **刻意不回落示例**：写操作，失败要冒出来（与 `createUpgradePlan` 同取舍）。
+ */
+export async function setGatewayArchived(
+  gatewayId: string,
+  archived: boolean,
+): Promise<GatewayInstance> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/archive`,
+    { method: "POST", body: JSON.stringify({ archived }) },
+  );
+  return normalizeGatewayInstance(raw);
 }
 
 function exampleGatewayInstances(): GatewayInstance[] {
@@ -1365,6 +1444,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       initializedAt: now,
       initUrl:
         "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-001",
+      archivedAt: null,
     },
     {
       gatewayId: "gw-002",
@@ -1374,6 +1454,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       initializedAt: null,
       initUrl:
         "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-002",
+      archivedAt: null,
     },
     {
       gatewayId: "gw-003",
@@ -1383,6 +1464,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       initializedAt: null,
       initUrl:
         "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-003",
+      archivedAt: null,
     },
     {
       gatewayId: "gw-004",
@@ -1392,6 +1474,7 @@ function exampleGatewayInstances(): GatewayInstance[] {
       initializedAt: null,
       initUrl:
         "https://127.0.0.1:3100/api/v1/gateway/link-upstream?gateway_id=gw-004",
+      archivedAt: null,
     },
   ];
 }
@@ -1820,60 +1903,79 @@ function exampleRolloutPlanDetail(planId: string): RolloutPlanDetail {
   };
 }
 
+/**
+ * 创建灰度发布计划（`CreateUpgradePlan`）：① 网关升级 / ② Agent 包下发复用同一端点。
+ *
+ * **刻意不回落示例**：这是**写操作**，示例回执会把「其实没建成」伪装成一张成功计划
+ * （曾把一个 4xx/5xx 掩盖成回执）—— 与 `publishRelease` / `rotateGatewayLinkToken` 同一取舍。
+ * 真实失败就让它冒出来（`ApiError`），由页面报错。
+ */
 export async function createUpgradePlan(
   command: CreateUpgradePlanCommand,
 ): Promise<ExampleResult<RolloutPlan>> {
-  return fetchOrFallback(
-    "/api/v1/admin/rollout-plans",
-    () => exampleUpgradePlan(command),
-    {
-      method: "POST",
-      body: JSON.stringify({
-        action: command.action,
-        spec: command.spec,
-        target_ids: command.targetIds,
-        phase_count: command.phaseCount,
-        deadline_at: command.deadlineAt,
-        timeout_seconds: command.timeoutSeconds,
-        batch_size: command.batchSize,
-      }),
-    },
-  ).then(async (result) => {
-    if (result.source === "real") {
-      return { ...result, data: normalizeRolloutPlan(result.data) };
-    }
-    return result;
+  const raw = await requestJson<any>("/api/v1/admin/rollout-plans", {
+    method: "POST",
+    body: JSON.stringify({
+      action: command.action,
+      spec: command.spec,
+      target_ids: command.targetIds,
+      phase_count: command.phaseCount,
+      deadline_at: command.deadlineAt,
+      timeout_seconds: command.timeoutSeconds,
+      batch_size: command.batchSize,
+    }),
   });
+  return { source: "real", data: normalizeRolloutPlan(raw) };
 }
 
-/** 批准计划：`draft → rolling`，进入第一阶段（`ApproveRolloutPlan`）。 */
+/**
+ * 批准计划：`draft → rolling`，进入第一阶段（`ApproveRolloutPlan`）。
+ *
+ * **刻意不回落示例**：写操作，失败要冒出来（与 `createUpgradePlan` 同取舍）。
+ */
 export async function approveUpgradePlan(
   command: PlanRefCommand,
 ): Promise<ExampleResult<RolloutPlan>> {
-  return fetchOrFallback(
-    "/api/v1/admin/rollout-plans/approve",
-    () => examplePlanRef(command, "rolling", 1),
-    { method: "POST", body: JSON.stringify({ plan_id: command.planId }) },
-  ).then(async (result) => {
-    if (result.source === "real") {
-      return { ...result, data: normalizeRolloutPlan(result.data) };
-    }
-    return result;
+  const raw = await requestJson<any>("/api/v1/admin/rollout-plans/approve", {
+    method: "POST",
+    body: JSON.stringify({ plan_id: command.planId }),
   });
+  return { source: "real", data: normalizeRolloutPlan(raw) };
 }
 
-/** 人工推进到下一阶段（`AdvanceRolloutPlan`）。 */
+/**
+ * 人工推进到下一阶段（`AdvanceRolloutPlan`）。
+ *
+ * **刻意不回落示例**：写操作，失败要冒出来（与 `createUpgradePlan` 同取舍）。
+ */
 export async function advanceUpgradePlan(
   command: PlanRefCommand,
 ): Promise<ExampleResult<RolloutPlan>> {
-  return fetchOrFallback(
-    "/api/v1/admin/rollout-plans/advance",
-    () => examplePlanRef(command, "rolling", 2),
-    { method: "POST", body: JSON.stringify({ plan_id: command.planId }) },
-  ).then(async (result) => {
-    if (result.source === "real") {
-      return { ...result, data: normalizeRolloutPlan(result.data) };
-    }
-    return result;
+  const raw = await requestJson<any>("/api/v1/admin/rollout-plans/advance", {
+    method: "POST",
+    body: JSON.stringify({ plan_id: command.planId }),
   });
+  return { source: "real", data: normalizeRolloutPlan(raw) };
+}
+
+/**
+ * 重派失败目标（`RetryRolloutPlan`）：中心**新建一份补跑计划**（新 `plan_id`、单阶段、直接放行），
+ * 返回的是**那份新计划** —— 原计划原样留作历史。
+ *
+ * 为什么不是「把原计划的条目改回 pending」：网关按 `plan_id` 去重（落盘游标 `last_plan_id`），
+ * 同一份计划改状态会被静默跳过（界面显示待派、网关永不重跑）。新 `plan_id` 才真的重驱。
+ *
+ * **刻意不回落示例**：写操作，失败要冒出来（与 `createUpgradePlan` 同取舍）。
+ */
+export async function retryUpgradePlan(
+  command: RetryPlanCommand,
+): Promise<ExampleResult<RolloutPlan>> {
+  const raw = await requestJson<any>("/api/v1/admin/rollout-plans/retry", {
+    method: "POST",
+    body: JSON.stringify({
+      plan_id: command.planId,
+      target_ids: command.targetIds ?? [],
+    }),
+  });
+  return { source: "real", data: normalizeRolloutPlan(raw) };
 }

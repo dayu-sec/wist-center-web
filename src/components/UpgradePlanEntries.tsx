@@ -12,13 +12,23 @@ import styles from "./UpgradePlanEntries.module.css";
  *
  * 计划的状态只说「这张单子走到哪」，真正的事实（哪台成了、哪台没成、**为什么**）在条目里 ——
  * 失败原因就是条目的 `detail`。所以这里把条目铺出来，别让人只看到「失败」却看不到原因。
+ *
+ * 计划**已终结失败**（`failed`）时，逐台失败条目各给一个「重试」：它是**重派**（中心新建一份
+ * 补跑计划），不是把这一条改回待派 —— 网关按 `plan_id` 去重，同一份计划改状态会被静默跳过。
  */
 export function UpgradePlanEntries({
   planId,
   status,
+  retryable = false,
+  retryPending = false,
+  onRetryTarget,
 }: {
   planId: string;
   status: string;
+  /** 计划已终结失败：失败条目可逐台重试。 */
+  retryable?: boolean;
+  retryPending?: boolean;
+  onRetryTarget?: (targetId: string) => void;
 }) {
   // 草稿还没有阶段/条目，不拉详情。
   const { data, isLoading, error } = useUpgradePlan(
@@ -80,6 +90,17 @@ export function UpgradePlanEntries({
             <span className={styles.time}>
               {entry.updatedAt ? formatDateTime(entry.updatedAt) : "—"}
             </span>
+            {retryable && entry.status === "failed" && onRetryTarget ? (
+              <button
+                type="button"
+                className={styles.retryButton}
+                disabled={retryPending}
+                onClick={() => onRetryTarget(entry.targetId)}
+                title="重派这台到一份新的补跑计划（同一 plan_id 改状态会被网关跳过）"
+              >
+                重试
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>

@@ -64,6 +64,52 @@
   cursor: not-allowed;
 }
 
+/* 计划级「重试失败项」：与「批准/推进」并排，但**不是**主行动（重试是补救），用描边次级样式。 */
+.retryButton {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.retryButton:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.retryButton:disabled {
+  border-color: var(--border-strong);
+  background: var(--border-strong);
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+/* 重派回执：只说明「新建了哪份补跑计划」，不抢计划列表的视觉重心。 */
+.retryNotice {
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.retryPlanId {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .empty {
   width: calc(100% - 48px);
   max-width: calc(var(--content-max) - 48px);

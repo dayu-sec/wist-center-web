@@ -1,11 +1,13 @@
 {
   "name": "wist-center-web",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test:agent-package-push": "tsx tests/agent-package-push-contract.test.ts",
+    "test:gateway-targets": "tsx tests/gateway-upgrade-targets.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

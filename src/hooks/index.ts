@@ -24,7 +24,9 @@ import {
   publishRelease,
   publishReleaseBatch,
   resolveGitHubRelease,
+  retryUpgradePlan,
   rotateGatewayLinkToken,
+  setGatewayArchived,
   setReleaseStatus,
   type BindGatewayCustomerCommand,
   type CreateGatewayInstanceCommand,
@@ -35,8 +37,36 @@ import {
   type PublishReleaseCommand,
   type ReleasePackage,
   type ReleaseStatus,
+  type RetryPlanCommand,
   type RotateGatewayLinkTokenCommand,
 } from "../api";
+
+/**
+ * 当前缓存里有多少个查询**回落到示例数据**（`source === "example"`）。
+ *
+ * 为什么需要它：`source` 是每个取数函数自己标的（接口不可达 / 未鉴权才回落），而「浏览器里有没有
+ * 手填 Admin Token」并不能代表这件事（dev 代理会**在服务端**补 token，页面不带 token 也拿真数据）。
+ * 状态条据此说「现在是示例数据」，才不会把假机队说成真的。
+ */
+export function useExampleFallbackCount(): number {
+  const queryClient = useQueryClient();
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const scan = () => {
+      let example = 0;
+      for (const query of queryClient.getQueryCache().getAll()) {
+        const data = query.state.data as { source?: string } | undefined;
+        if (data && typeof data === "object" && data.source === "example") {
+          example += 1;
+        }
+      }
+      setCount(example);
+    };
+    scan();
+    return queryClient.getQueryCache().subscribe(scan);
+  }, [queryClient]);
+  return count;
+}
 
 // 当 Admin Token 变化时触发重渲染，使查询能立即从禁用切到启用。
 function useAuthVersion() {
@@ -49,12 +79,14 @@ function useAuthVersion() {
   }, []);
 }
 
-export function useGatewayStatusView() {
+/** 网关状态视图；`includeArchived` = 把**已归档**的网关也带回来（默认隐藏）。 */
+export function useGatewayStatusView(includeArchived = false) {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken());
   return useQuery({
-    queryKey: ["gateway-status-view"],
-    queryFn: fetchGatewayStatusView,
+    // 归档开关进 key：两个集合各自缓存，切回来不用重新等。
+    queryKey: ["gateway-status-view", includeArchived],
+    queryFn: () => fetchGatewayStatusView(includeArchived),
     // 有真实后端时 5s 轮询刷新；未配置 token 时也能以 example 数据渲染。
     refetchInterval: enabled ? 5_000 : 30_000,
   });
@@ -189,9 +221,12 @@ export function useReleases(component: string) {
 }
 
 /** 一次拉取多个组件的发布记录，返回 `{ component: 版本列表 }`（升级目标版本下拉用）。 */
-export function useReleasesForComponents(
-  components: readonly string[],
-): Record<string, string[]> {
+export function useReleasesForComponents(components: readonly string[]): {
+  /** 组件 → 已发布版本（新→旧，接口顺序）。 */
+  versions: Record<string, string[]>;
+  /** 有任一组件回落到**示例数据**（接口不可达 / 未鉴权）—— 调用方据此别拿假版本去建计划。 */
+  source: "real" | "example";
+} {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken());
   const results = useQueries({
@@ -202,11 +237,13 @@ export function useReleasesForComponents(
     })),
   });
   const versions: Record<string, string[]> = {};
+  let source: "real" | "example" = "real";
   components.forEach((component, index) => {
-    versions[component] =
-      results[index]?.data?.data?.map((release) => release.version) ?? [];
+    const result = results[index]?.data;
+    if (result?.source === "example") source = "example";
+    versions[component] = result?.data?.map((release) => release.version) ?? [];
   });
-  return versions;
+  return { versions, source };
 }
 
 /** 一条托管安装包 + 数据来源（安装包管理页汇总列表用）。 */
@@ -255,13 +292,31 @@ export function useAllReleases(components: readonly string[]): {
   };
 }
 
-export function useGatewayInstances() {
+/** 实例总览；`includeArchived` = 把**已归档**的实例也带回来（默认隐藏，实例页的开关用这个）。 */
+export function useGatewayInstances(includeArchived = false) {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken());
   return useQuery({
-    queryKey: ["gateway-instances"],
-    queryFn: fetchGatewayInstances,
+    queryKey: ["gateway-instances", includeArchived],
+    queryFn: () => fetchGatewayInstances(includeArchived),
     refetchInterval: enabled ? 10_000 : 30_000,
+  });
+}
+
+/**
+ * 归档 / 取消归档一台网关；成功后刷新实例与态势两类视图 —— 归档改的正是「哪些网关该出现在
+ * 默认视图里」，两处都得跟着变。
+ */
+export function useSetGatewayArchived() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: { gatewayId: string; archived: boolean }) =>
+      setGatewayArchived(command.gatewayId, command.archived),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["gateway-instances"] });
+      void queryClient.invalidateQueries({ queryKey: ["gateway-status-view"] });
+      void queryClient.invalidateQueries({ queryKey: ["gateway-list"] });
+    },
   });
 }
 
@@ -413,6 +468,22 @@ export function useAdvanceUpgradePlan() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (command: PlanRefCommand) => advanceUpgradePlan(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
+    },
+  });
+}
+
+/**
+ * 重派失败目标（「重试」）：中心新建一份**补跑计划**，返回的是那份新计划。
+ *
+ * 成功后刷新列表与详情 —— 新计划会出现在列表里（`-retry` 结尾），页面据此说清「重派成了哪一份」。
+ */
+export function useRetryUpgradePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: RetryPlanCommand) => retryUpgradePlan(command),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });

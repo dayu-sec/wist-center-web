@@ -17,7 +17,9 @@ import {
   phaseScaleLabel,
   planPhases,
 } from "@dayu-sec/wist-web-core/release";
-import styles from "./UpgradePlanCreatePanel.module.css";
+import { GatewayTargetBlock } from "./GatewayTargetBlock";
+import { selectGatewayUpgradeTargets } from "./gatewayUpgradeTargets";
+import styles from "./PlanForm.module.css";
 
 // ① 升级安装的目标组件：stack / gops / gx（agentd 走 ②「Agent 包下发」，由网关决定升级）。
 const COMPONENTS = [
@@ -36,16 +38,19 @@ function defaultDeadlineLocal(): string {
 }
 
 /**
- * 创建升级计划：多组件目标版本 + 网关范围 + **灰度阶段**。
+ * 创建升级计划：多组件目标版本 + **自动确定的网关目标** + **灰度阶段**。
  *
- * 灰度照 gateway-web 的口径：**只选阶段数**（2/3/4/5），网关按固定阶梯
- * （1 台 → 10% → 30% → 70% → 全量）**自动分配**，无需手填；推进一律人工确认。
+ * 两处都照 gateway-web 的口径，不再让人手填：
+ * - **目标**：机队里排掉明确离线的，其余自动作为升级目标（见 `gatewayUpgradeTargets`）；
+ * - **灰度**：只选阶段数（2/3/4/5），网关按固定阶梯（1 台 → 10% → 30% → 70% → 全量）自动分配。
+ * 推进一律人工确认。
  */
 export function UpgradePlanCreatePanel() {
   const mutation = useCreateUpgradePlan();
   const { data: statusData } = useGatewayStatusView();
   const gateways = statusData?.data ?? [];
-  const versionsByComponent = useReleasesForComponents(COMPONENTS);
+  const releases = useReleasesForComponents(COMPONENTS);
+  const versionsByComponent = releases.versions;
 
   // 目标版本从已发布版本中选取（下拉）。
   function versionsFor(component: string): string[] {
@@ -55,12 +60,25 @@ export function UpgradePlanCreatePanel() {
   const [targets, setTargets] = useState<UpgradeTarget[]>([
     { component: "wist-gateway-stack", targetVersion: "" },
   ]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [phaseCount, setPhaseCount] = useState(3);
   // 执行约束（服务端要求 `deadline_at` 为 RFC3339、`timeout_seconds` 为正）。
   const [deadlineLocal, setDeadlineLocal] = useState(defaultDeadlineLocal());
   const [timeoutSeconds, setTimeoutSeconds] = useState(1800);
   const [batchSize, setBatchSize] = useState(0);
+
+  // 升级目标**自动确定**：机队（已接入并上报过、未归档）里排除明确离线的。
+  const fleet = useMemo(
+    () => selectGatewayUpgradeTargets(gateways),
+    [gateways],
+  );
+  const selected = fleet.targetIds;
+
+  // 机队 / 版本只要有一头是**示例数据**，就不能拿去建计划：目标 id 与版本都是假的，
+  // 中心要么回「unknown target(s)」、要么建出一份永远解析不出制品的空计划。
+  const exampleFleet = statusData?.source === "example";
+  const exampleVersions = releases.source === "example";
+  const exampleData = exampleFleet || exampleVersions;
+
+  const [phaseCount, setPhaseCount] = useState(3);
 
   function updateTarget(index: number, patch: Partial<UpgradeTarget>) {
     setTargets((prev) =>
@@ -76,17 +94,6 @@ export function UpgradePlanCreatePanel() {
   function removeTarget(index: number) {
     setTargets((prev) => prev.filter((_, i) => i !== index));
   }
-  function toggleGateway(id: string) {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
-  function selectAllGateways() {
-    setSelected(gateways.map((gateway) => gateway.gatewayId));
-  }
-  function clearGateways() {
-    setSelected([]);
-  }
 
   // 阶段数按目标台数收窄（每段至少 1 台）；小目标就不再多轮。
   const phaseCounts = useMemo(
@@ -97,7 +104,7 @@ export function UpgradePlanCreatePanel() {
     ? phaseCount
     : (phaseCounts[phaseCounts.length - 1] ?? phaseCount);
 
-  // 阶段分配（纯派生，跟着所选网关与阶段数走）。
+  // 阶段分配（纯派生，跟着目标与阶段数走）。
   const phasePlan = useMemo(
     () => planPhases(selected, effectivePhaseCount),
     [selected, effectivePhaseCount],
@@ -108,6 +115,7 @@ export function UpgradePlanCreatePanel() {
   const deadlineValid = !Number.isNaN(deadline.getTime());
   const canSubmit =
     !mutation.isPending &&
+    !exampleData &&
     selected.length > 0 &&
     !phasePlan.error &&
     deadlineValid &&
@@ -189,50 +197,14 @@ export function UpgradePlanCreatePanel() {
           ))}
         </div>
 
-        <div className={styles.block}>
-          <div className={styles.blockHeader}>
-            <span className={styles.blockTitle}>
-              Gateway 范围（{selected.length} 已选）
-            </span>
-            <span className={styles.blockActions}>
-              <button
-                type="button"
-                className={styles.addButton}
-                onClick={selectAllGateways}
-                disabled={gateways.length === 0}
-              >
-                全选
-              </button>
-              <button
-                type="button"
-                className={styles.addButton}
-                onClick={clearGateways}
-                disabled={selected.length === 0}
-              >
-                清空
-              </button>
-            </span>
-          </div>
-          {gateways.length === 0 ? (
-            <div className={styles.empty}>暂无网关。</div>
-          ) : (
-            <div className={styles.gatewayGrid}>
-              {gateways.map((gateway) => (
-                <label key={gateway.gatewayId} className={styles.checkbox}>
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(gateway.gatewayId)}
-                    onChange={() => toggleGateway(gateway.gatewayId)}
-                  />
-                  <span>
-                    {gateway.gatewayId}
-                    <span className={styles.checkboxSub}>{gateway.version}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
+        <GatewayTargetBlock
+          gateways={gateways}
+          targetIds={selected}
+          fleetSize={fleet.fleetSize}
+          offlineCount={fleet.offlineCount}
+          exampleFleet={exampleFleet}
+          exampleVersions={exampleVersions}
+        />
 
         <div className={styles.block}>
           <div className={styles.blockHeader}>
@@ -263,8 +235,8 @@ export function UpgradePlanCreatePanel() {
           ) : null}
 
           <span className={styles.formNote}>
-            已选 {selected.length} 个网关，最多分{" "}
-            {phaseCounts.length > 0 ? phaseCounts[phaseCounts.length - 1] : 0} 批 —— 每段至少 1 个，
+            目标 {selected.length} 台，最多分{" "}
+            {phaseCounts.length > 0 ? phaseCounts[phaseCounts.length - 1] : 0} 批 —— 每段至少 1 台，
             按排序后的 gateway_id 依次切片、互不重叠（一个网关只升一次）。推进一律人工确认。
           </span>
 

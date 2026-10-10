@@ -40,7 +40,7 @@ export interface PackageTarget {
   subtitle: string;
   /** 产物地址输入框的占位示例。 */
   artifactPlaceholder: string;
-  /** 多平台组件：一次录入必须按这些槽位齐备（galaxy-ops / galaxy-flow 三平台）。 */
+  /** 多平台组件：一次录入必须按这些槽位齐备（wist-agentd / galaxy-ops / galaxy-flow 三平台）。 */
   platforms?: PlatformSlot[];
 }
 
