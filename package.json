@@ -1,17 +1,21 @@
 {
   "name": "wist-center-web",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:agent-package-push": "tsx tests/agent-package-push-contract.test.ts",
+    "test:artifact-name": "tsx tests/artifact-name.test.ts",
+    "test:package-form": "tsx tests/package-form.test.ts",
     "test:gateway-targets": "tsx tests/gateway-upgrade-targets.test.ts",
+    "test:admin-token": "tsx tests/admin-token-contract.test.ts",
+    "test:version": "tsx tests/version-contract.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@dayu-sec/wist-web-core": "github:dayu-sec/wist-web-core#v0.1.0",
+    "@dayu-sec/wist-web-core": "github:dayu-sec/wist-web-core#v0.2.0",
     "@tanstack/react-query": "^5.51.0",
     "change-case": "^5.4.4",
     "react": "^18.3.0",

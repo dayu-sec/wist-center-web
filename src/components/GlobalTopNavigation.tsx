@@ -8,6 +8,7 @@ import {
   setAdminApiToken,
 } from "../api";
 import styles from "./GlobalTopNavigation.module.css";
+import { VersionFooter } from "./VersionFooter";
 
 interface NavItem {
   to: string;
@@ -120,38 +121,48 @@ export function GlobalTopNavigation({
   children,
 }: GlobalTopNavigationProps) {
   const queryClient = useQueryClient();
-  const [token, setToken] = useState(() => getAdminApiToken() ?? "");
+  // 输入框**不预填已存 token**：预填旧值（还是密码框）+ 直接粘贴会拼成「旧+新」，导致「输了新
+  // token 却一直 401」。空框起步、粘贴即整体替换。
+  const [token, setToken] = useState("");
+  // 「已设置」以**实际存储**为准（经变更事件刷新），不拿输入框内容当判据。
+  const [hasStoredToken, setHasStoredToken] = useState(() =>
+    Boolean(getAdminApiToken()),
+  );
   const [applied, setApplied] = useState(false);
   const appliedTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(appliedTimer.current), []);
 
   useEffect(() => {
-    function refreshToken() {
-      setToken(getAdminApiToken() ?? "");
+    function onAuthChanged() {
+      const hasToken = Boolean(getAdminApiToken());
+      setHasStoredToken(hasToken);
+      // token 变了：设了 → 重新取；清了 → **丢弃**缓存（含上一条 401/429），否则清完页面上
+      // 还挂着旧横幅，看起来像「点了清除没生效」。
+      if (hasToken) {
+        void queryClient.invalidateQueries();
+      } else {
+        queryClient.removeQueries();
+      }
     }
-    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, refreshToken);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
     return () => {
-      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, refreshToken);
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
     };
-  }, []);
-
-  const hasToken = Boolean(getAdminApiToken());
+  }, [queryClient]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAdminApiToken(token);
-    setToken(getAdminApiToken() ?? "");
+    setToken(""); // 不把密钥留在输入框
     setApplied(true);
     window.clearTimeout(appliedTimer.current);
     appliedTimer.current = window.setTimeout(() => setApplied(false), 1600);
-    void queryClient.invalidateQueries();
   }
 
   function handleClear() {
     clearAdminApiToken();
     setToken("");
-    void queryClient.invalidateQueries();
   }
 
   return (
@@ -160,19 +171,22 @@ export function GlobalTopNavigation({
         <>
           <div className={styles.brand}>
             <span className={styles.brandMark} aria-hidden="true">
+              {/* 三格蜂巢（与 /favicon.svg 同一套几何）—— 一眼区别于网关的单格立方体。 */}
               <svg viewBox="0 0 20 20" width="17" height="17">
-                <path
-                  d="M10 2.4 17 6.2v7.6L10 17.6 3 13.8V6.2Z"
+                <g
                   fill="none"
                   stroke="#fff"
-                  strokeWidth="1.6"
+                  strokeWidth="1.3"
                   strokeLinejoin="round"
-                />
-                <circle cx="10" cy="10" r="1.9" fill="#fff" />
+                >
+                  <path d="M10 2.39 13.77 4.565v4.35L10 11.09 6.23 8.915v-4.35Z" />
+                  <path d="M6.23 8.915 10 11.09v4.35L6.23 17.615 2.46 15.44v-4.35Z" />
+                  <path d="M13.77 8.915 17.54 11.09v4.35L13.77 17.615 10 15.44v-4.35Z" />
+                </g>
               </svg>
             </span>
             <span className={styles.brandCopy}>
-              <span className={styles.brandText}>WarpInsightCenter</span>
+              <span className={styles.brandText}>WistCenter</span>
               <span className={styles.brandSub}>全局控制中心</span>
             </span>
           </div>
@@ -208,12 +222,12 @@ export function GlobalTopNavigation({
               </label>
               <span
                 className={
-                  hasToken
+                  hasStoredToken
                     ? `${styles.authState} ${styles.authStateOn}`
                     : styles.authState
                 }
               >
-                {hasToken ? "已设置" : "未设置"}
+                {hasStoredToken ? "已设置" : "未设置"}
               </span>
             </div>
             <input
@@ -224,6 +238,7 @@ export function GlobalTopNavigation({
               placeholder="粘贴管理令牌"
               value={token}
               onChange={(event) => setToken(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
             />
             <p className={styles.authHint}>
               仅存于本会话标签页，用于调用 Center 管理接口。
@@ -232,7 +247,7 @@ export function GlobalTopNavigation({
               <button
                 className={`${styles.authButton} ${styles.authPrimary}`}
                 type="submit"
-                disabled={!token || token === getAdminApiToken()}
+                disabled={!token}
               >
                 {applied ? "已应用" : "应用"}
               </button>
@@ -240,12 +255,15 @@ export function GlobalTopNavigation({
                 className={styles.authButton}
                 type="button"
                 onClick={handleClear}
-                disabled={!hasToken}
+                disabled={!hasStoredToken}
               >
                 清除
               </button>
             </div>
           </form>
+
+          {/* 左下角常驻版本块：前端 + 后端版本（吸底，见 VersionFooter.module.css）。 */}
+          <VersionFooter />
         </>
       )}
     </aside>

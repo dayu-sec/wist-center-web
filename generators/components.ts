@@ -104,7 +104,7 @@ function chineseLabel(name: string): string | null {
     UpgradeDispatchCreatedAtText: "升级派发创建时间",
     UpgradeDispatchIdText: "升级派发 ID",
     X86LinuxAgentInstallCode: "X86 Linux 安装代码",
-    // ── WarpInsightCenter Web ──
+    // ── WistCenter Web ──
     GatewayListPage: "网关列表",
     GatewayInstancePage: "网关实例",
     ReleasePage: "版本发布",

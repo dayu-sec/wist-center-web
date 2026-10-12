@@ -33,6 +33,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      # 管理 token 的传输机制（存哪 / Bearer 注入 / 401 自动清 / 429 保留 + Retry-After）。
+      - name: Test (admin token mechanism)
+        run: npm run test:admin-token
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]

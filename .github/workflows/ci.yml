@@ -35,6 +35,10 @@ jobs:
       - name: Contract tests
         run: npm run test:agent-package-push
 
+      # 管理 token 的传输机制（存哪 / Bearer 注入 / 401 自动清 / 429 保留 + Retry-After）。
+      - name: Test (admin token mechanism)
+        run: npm run test:admin-token
+
 # 说明：本文件原先逐字节复制自 wist-gateway-web 的 ci.yml，已按本项目的实际能力收敛。
 # 本仓已加 tests/ 与 `test:agent-package-push`（发布 ② 契约），故恢复了对应步骤。
 # 仍**未**恢复的两条（属 gateway 侧 / 本仓尚不具备）：

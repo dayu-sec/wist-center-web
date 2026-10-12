@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
+  ApiError,
   advanceUpgradePlan,
   approveUpgradePlan,
   bindGatewayCustomer,
   createGatewayInstance,
   createUpgradePlan,
+  fetchBackendVersion,
   fetchGatewayAgents,
   fetchAgentHistory,
   fetchGatewayHistory,
@@ -44,9 +46,9 @@ import {
 /**
  * 当前缓存里有多少个查询**回落到示例数据**（`source === "example"`）。
  *
- * 为什么需要它：`source` 是每个取数函数自己标的（接口不可达 / 未鉴权才回落），而「浏览器里有没有
- * 手填 Admin Token」并不能代表这件事（dev 代理会**在服务端**补 token，页面不带 token 也拿真数据）。
- * 状态条据此说「现在是示例数据」，才不会把假机队说成真的。
+ * 为什么需要它：`source` 由每个取数函数自己标（只有**非鉴权**的失败才回落，见 `fetchOrFallback`）。
+ * 状态条据此说「现在是示例数据」，才不会把假机队说成真的 —— 未鉴权 / 无 token 已被内容区 gate
+ * 拦在前面，不会走到这里。
  */
 export function useExampleFallbackCount(): number {
   const queryClient = useQueryClient();
@@ -79,6 +81,52 @@ function useAuthVersion() {
   }, []);
 }
 
+/** 订阅当前 Admin Token（token 变化时重渲染）；供内容区 gate / 状态条用。 */
+export function useAdminToken(): string | null {
+  const [token, setToken] = useState<string | null>(() => getAdminApiToken());
+  useEffect(() => {
+    const onAuthChanged = () => setToken(getAdminApiToken());
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  return token;
+}
+
+/**
+ * 缓存里是否出现了 401（缺 / 错 Admin Token）。
+ *
+ * **换 token 时复位**：给一次重试机会 —— 否则旧 token 的错误会一直把 gate 关着，
+ * 而且错 token 在每 5~15s 的轮询下会把本机 IP 撞满限流（5 次/60s → 封 60s）。
+ */
+export function useAuthErrorSignal(): boolean {
+  const queryClient = useQueryClient();
+  const [hasError, setHasError] = useState(false);
+  useEffect(() => {
+    const scan = () => {
+      setHasError(
+        queryClient
+          .getQueryCache()
+          .getAll()
+          .some(
+            (query) =>
+              query.state.error instanceof ApiError &&
+              query.state.error.status === 401,
+          ),
+      );
+    };
+    scan();
+    const unsubscribe = queryClient.getQueryCache().subscribe(scan);
+    const onAuthChanged = () => setHasError(false);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () => {
+      unsubscribe();
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    };
+  }, [queryClient]);
+  return hasError;
+}
+
 /** 网关状态视图；`includeArchived` = 把**已归档**的网关也带回来（默认隐藏）。 */
 export function useGatewayStatusView(includeArchived = false) {
   useAuthVersion();
@@ -87,8 +135,9 @@ export function useGatewayStatusView(includeArchived = false) {
     // 归档开关进 key：两个集合各自缓存，切回来不用重新等。
     queryKey: ["gateway-status-view", includeArchived],
     queryFn: () => fetchGatewayStatusView(includeArchived),
-    // 有真实后端时 5s 轮询刷新；未配置 token 时也能以 example 数据渲染。
-    refetchInterval: enabled ? 5_000 : 30_000,
+    // 有 token 才发（5s 轮询）；无 token **不轮询**（`false`）—— 不发就不会拿 401、更不会回落成假数据。
+    refetchInterval: enabled ? 5_000 : false,
+    enabled,
   });
 }
 
@@ -98,19 +147,19 @@ export function useGatewayStatus(gatewayId: string) {
   return useQuery({
     queryKey: ["gateway-status", gatewayId],
     queryFn: () => fetchGatewayStatus(gatewayId),
-    refetchInterval: enabled ? 5_000 : 30_000,
-    enabled: Boolean(gatewayId),
+    refetchInterval: enabled ? 5_000 : false,
+    enabled: enabled && Boolean(gatewayId),
   });
 }
 
 /** 轮询网关历史序列；Query key 包含窗口，避免不同时间范围共享缓存。 */
 export function useGatewayHistory(gatewayId: string, window = "1h") {
   useAuthVersion();
-  const enabled = Boolean(gatewayId);
+  const enabled = Boolean(getAdminApiToken()) && Boolean(gatewayId);
   return useQuery({
     queryKey: ["gateway-history", gatewayId, window],
     queryFn: () => fetchGatewayHistory(gatewayId, window),
-    refetchInterval: getAdminApiToken() ? 15_000 : 30_000,
+    refetchInterval: enabled ? 15_000 : false,
     enabled,
   });
 }
@@ -119,7 +168,7 @@ export function useGatewayHistory(gatewayId: string, window = "1h") {
 export function useGatewayHistories(gatewayIds: string[], window = "1h") {
   useAuthVersion();
   const hasAdminToken = Boolean(getAdminApiToken());
-  const enabled = gatewayIds.length > 0;
+  const enabled = hasAdminToken && gatewayIds.length > 0;
   return useQuery({
     queryKey: ["gateway-histories", gatewayIds, window],
     queryFn: async () => {
@@ -130,7 +179,7 @@ export function useGatewayHistories(gatewayIds: string[], window = "1h") {
         results.map((result) => [result.data.gatewayId, result]),
       );
     },
-    refetchInterval: hasAdminToken ? 15_000 : 30_000,
+    refetchInterval: enabled ? 15_000 : false,
     enabled,
   });
 }
@@ -139,7 +188,7 @@ export function useGatewayHistories(gatewayIds: string[], window = "1h") {
 export function useAgentHistories(gatewayId: string, agentIds: string[]) {
   useAuthVersion();
   const hasAdminToken = Boolean(getAdminApiToken());
-  const enabled = Boolean(gatewayId) && agentIds.length > 0;
+  const enabled = hasAdminToken && Boolean(gatewayId) && agentIds.length > 0;
   return useQuery({
     queryKey: ["agent-histories", gatewayId, agentIds],
     queryFn: async () => {
@@ -150,7 +199,7 @@ export function useAgentHistories(gatewayId: string, agentIds: string[]) {
         results.map((result) => [result.data.agentId, result]),
       );
     },
-    refetchInterval: hasAdminToken ? 15_000 : 30_000,
+    refetchInterval: enabled ? 15_000 : false,
     enabled,
   });
 }
@@ -161,15 +210,16 @@ export function useGatewayLifecycle(gatewayId: string) {
   return useQuery({
     queryKey: ["gateway-lifecycle", gatewayId],
     queryFn: () => fetchGatewayLifecycle(gatewayId),
-    refetchInterval: enabled ? 10_000 : 30_000,
-    enabled: Boolean(gatewayId),
+    refetchInterval: enabled ? 10_000 : false,
+    enabled: enabled && Boolean(gatewayId),
   });
 }
 
 /** 批量查询多网关下的 Agent 状态（版本发布页展示各 Agent 当前版本）。 */
 export function useGatewayAgentsForAll(gatewayIds: string[]) {
   useAuthVersion();
-  const enabled = gatewayIds.length > 0;
+  const hasAdminToken = Boolean(getAdminApiToken());
+  const enabled = hasAdminToken && gatewayIds.length > 0;
   return useQuery({
     queryKey: ["all-gateway-agents", gatewayIds],
     queryFn: async () => {
@@ -183,7 +233,7 @@ export function useGatewayAgentsForAll(gatewayIds: string[]) {
         })),
       );
     },
-    refetchInterval: getAdminApiToken() ? 15_000 : 30_000,
+    refetchInterval: enabled ? 15_000 : false,
     enabled,
   });
 }
@@ -194,8 +244,8 @@ export function useGatewayAgents(gatewayId: string) {
   return useQuery({
     queryKey: ["gateway-agents", gatewayId],
     queryFn: () => fetchGatewayAgents(gatewayId),
-    refetchInterval: enabled ? 5_000 : 30_000,
-    enabled: Boolean(gatewayId),
+    refetchInterval: enabled ? 5_000 : false,
+    enabled: enabled && Boolean(gatewayId),
   });
 }
 
@@ -205,7 +255,8 @@ export function useGatewayList() {
   return useQuery({
     queryKey: ["gateway-list"],
     queryFn: fetchGatewayList,
-    refetchInterval: enabled ? 5_000 : 30_000,
+    refetchInterval: enabled ? 5_000 : false,
+    enabled,
   });
 }
 
@@ -216,7 +267,8 @@ export function useReleases(component: string) {
   return useQuery({
     queryKey: ["releases", component],
     queryFn: () => fetchReleases(component),
-    refetchInterval: enabled ? 15_000 : 30_000,
+    refetchInterval: enabled ? 15_000 : false,
+    enabled,
   });
 }
 
@@ -233,7 +285,8 @@ export function useReleasesForComponents(components: readonly string[]): {
     queries: components.map((component) => ({
       queryKey: ["releases", component],
       queryFn: () => fetchReleases(component),
-      refetchInterval: enabled ? 15_000 : 30_000,
+      refetchInterval: enabled ? 15_000 : false,
+      enabled,
     })),
   });
   const versions: Record<string, string[]> = {};
@@ -267,7 +320,8 @@ export function useAllReleases(components: readonly string[]): {
     queries: components.map((component) => ({
       queryKey: ["releases", component],
       queryFn: () => fetchReleases(component),
-      refetchInterval: enabled ? 15_000 : 30_000,
+      refetchInterval: enabled ? 15_000 : false,
+      enabled,
     })),
   });
   const records: ManagedRelease[] = [];
@@ -299,7 +353,8 @@ export function useGatewayInstances(includeArchived = false) {
   return useQuery({
     queryKey: ["gateway-instances", includeArchived],
     queryFn: () => fetchGatewayInstances(includeArchived),
-    refetchInterval: enabled ? 10_000 : 30_000,
+    refetchInterval: enabled ? 10_000 : false,
+    enabled,
   });
 }
 
@@ -323,8 +378,8 @@ export function useSetGatewayArchived() {
 export function useGatewayUptimes(gatewayIds: string[]) {
   useAuthVersion();
   const hasAdminToken = Boolean(getAdminApiToken());
-  // 无 Token 时仍请求一次，让 fetchOrFallback 提供与历史趋势一致的示例在线率。
-  const enabled = gatewayIds.length > 0;
+  // 有 token 才发：无 token 不发请求（也就不会拿 401、不会回落成假的在线率）。
+  const enabled = hasAdminToken && gatewayIds.length > 0;
   return useQuery({
     queryKey: ["gateway-uptimes", gatewayIds],
     queryFn: async () => {
@@ -338,7 +393,7 @@ export function useGatewayUptimes(gatewayIds: string[]) {
       return map;
     },
     enabled,
-    refetchInterval: hasAdminToken ? 5_000 : 30_000,
+    refetchInterval: enabled ? 5_000 : false,
   });
 }
 
@@ -427,7 +482,8 @@ export function useUpgradePlans() {
   return useQuery({
     queryKey: ["upgrade-plans"],
     queryFn: fetchUpgradePlans,
-    refetchInterval: enabled ? 15_000 : 30_000,
+    refetchInterval: enabled ? 15_000 : false,
+    enabled,
   });
 }
 
@@ -437,7 +493,7 @@ export function useUpgradePlan(planId: string | null) {
   return useQuery({
     queryKey: ["upgrade-plan", planId],
     queryFn: () => fetchUpgradePlan(planId as string),
-    enabled: Boolean(planId),
+    enabled: Boolean(planId) && Boolean(getAdminApiToken()),
   });
 }
 
@@ -488,5 +544,23 @@ export function useRetryUpgradePlan() {
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
     },
+  });
+}
+
+/**
+ * 中心（后端）版本（`GET /api/v1/version`）。
+ *
+ * 与别的查询不同，这条**不**等 admin token：端点是公开的，未登录时也要显示后端版本。
+ * 版本只在中心重启后才会变，`staleTime: Infinity` 让一次会话只取一次（切窗口不重拉）。
+ * 失败不刷新成示例值：拿不到就是未知，由版本块显示成 `—`。
+ *
+ * 注意：**不走 `fetchOrFallback`** —— 版本号绝不回落示例数据（`useExampleFallbackCount` 只看
+ * `data.source === "example"`，本查询的数据是裸字符串，天然不会计入回落计数）。
+ */
+export function useBackendVersion() {
+  return useQuery({
+    queryKey: ["backend-version"],
+    queryFn: fetchBackendVersion,
+    staleTime: Infinity,
   });
 }

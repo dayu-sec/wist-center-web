@@ -1,4 +1,4 @@
-// WarpInsightCenter 全局控制中心 Admin API client.
+// WistCenter 全局控制中心 Admin API client.
 //
 // 面向 AdminFacingInterface 的 HTTP 管理接口（Control.AdminFacingInterface）：
 // 网关态势 / 状态视图 / 网关管理 / 版本发布 / 升级计划。
@@ -7,6 +7,14 @@
 
 // 制品来源的版本粗解析也收到共享包里（与 `PackagePanel` 同一个）。
 export { versionFromArtifactUrl } from "@dayu-sec/wist-web-core/artifact";
+// 管理 token 的机制（存取 / 变更通知 / 统一错误类型 / 401·429 归类 / 信封解析）与网关侧同一份。
+import {
+  AdminApiError as ApiError,
+  createAdminAuth,
+  isRateLimitedError,
+  isUnauthorizedError,
+  readAdminApiError,
+} from "@dayu-sec/wist-web-core/auth";
 
 export type GatewayStatus = "online" | "offline" | (string & {});
 export type GatewayHealth = "healthy" | "degraded" | "unhealthy" | "unknown";
@@ -365,78 +373,20 @@ export interface ExampleResult<T> {
 // ── 认证与请求包装 ──
 
 export const ADMIN_AUTH_CHANGED_EVENT = "warpInsightCenterAuthChanged";
-const ADMIN_API_TOKEN_STORAGE_KEY = "warpInsightCenterApiToken";
 const GATEWAY_INIT_CURL_STORAGE_KEY = "warpInsightGatewayInitCurls";
 
-let adminApiToken: string | null =
-  typeof window !== "undefined"
-    ? window.sessionStorage.getItem(ADMIN_API_TOKEN_STORAGE_KEY)
-    : null;
+// 管理 token 的存取 / 变更通知、统一错误类型与 401/429 归类、错误信封解析都收在共享包
+// `@dayu-sec/wist-web-core/auth`（与 wist-gateway-web 同一份实作，只有 key / 事件名不同）。
+const adminAuth = createAdminAuth({
+  storageKey: "warpInsightCenterApiToken",
+  authChangedEvent: ADMIN_AUTH_CHANGED_EVENT,
+});
 
-export class ApiError extends Error {
-  readonly status: number;
-  /** 稳定的机器码：来自中心的 `{ "error": { "code", "message" } }` 信封（可选）。 */
-  readonly code?: string;
-  /** 可展示的短文案：信封里的 `message`（非信封响应回落为原文）。 */
-  readonly detail?: string;
-  readonly retryAfterSeconds?: number;
+export const getAdminApiToken = adminAuth.getAdminApiToken;
+export const setAdminApiToken = adminAuth.setAdminApiToken;
+export const clearAdminApiToken = adminAuth.clearAdminApiToken;
 
-  constructor(
-    status: number,
-    path: string,
-    options: {
-      code?: string;
-      detail?: string;
-      retryAfterSeconds?: number;
-    } = {},
-  ) {
-    super(
-      options.detail
-        ? `HTTP ${status} ${path}：${options.detail}`
-        : `HTTP ${status} ${path}`,
-    );
-    this.name = "ApiError";
-    this.status = status;
-    this.code = options.code;
-    this.detail = options.detail;
-    this.retryAfterSeconds = options.retryAfterSeconds;
-  }
-}
-
-/** 读中心的错误信封 `{ "error": { code, message } }`；非信封（旧式纯文本）回落为原文。 */
-async function readApiError(
-  response: Response,
-): Promise<{ code?: string; detail?: string }> {
-  let text = "";
-  try {
-    text = await response.text();
-  } catch {
-    return {};
-  }
-  if (!text) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(text) as {
-      error?: { code?: unknown; message?: unknown };
-    };
-    const envelope = parsed?.error;
-    if (envelope && typeof envelope === "object") {
-      return {
-        code: typeof envelope.code === "string" ? envelope.code : undefined,
-        detail:
-          typeof envelope.message === "string" ? envelope.message : undefined,
-      };
-    }
-  } catch {
-    // 不是 JSON：当作纯文本文案展示。
-  }
-  return { detail: text };
-}
-
-export function isRateLimitedError(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.status === 429;
-}
+export { ApiError, isRateLimitedError, isUnauthorizedError };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const adminToken = getAdminApiToken();
@@ -449,7 +399,12 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    const { code, detail } = await readApiError(response);
+    const { code, detail } = await readAdminApiError(response);
+    // 中心**明确**说这把 token 不对（invalid_admin_bearer_token）时就地清掉：否则坏 token 会被
+    // 一直保留并轮询，把本机 IP 打到限流封禁（429）——“token 错”被伪装成“被限流”。
+    if (response.status === 401 && code === "invalid_admin_bearer_token") {
+      clearAdminApiToken();
+    }
     if (response.status === 429) {
       const retryAfter = Number.parseInt(
         response.headers.get("Retry-After") ?? "",
@@ -465,10 +420,6 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, path, { code, detail });
   }
   return (await response.json()) as T;
-}
-
-export function getAdminApiToken(): string | null {
-  return adminApiToken;
 }
 
 /** 将创建回执中的 init curl 临时保存在当前浏览器会话，供实例详情页复用。 */
@@ -505,23 +456,6 @@ export function readGatewayInitCurl(gatewayId: string): string | null {
   }
 }
 
-export function setAdminApiToken(token: string): void {
-  const trimmed = token.trim();
-  adminApiToken = trimmed || null;
-  if (typeof window !== "undefined") {
-    if (adminApiToken) {
-      window.sessionStorage.setItem(ADMIN_API_TOKEN_STORAGE_KEY, adminApiToken);
-    } else {
-      window.sessionStorage.removeItem(ADMIN_API_TOKEN_STORAGE_KEY);
-    }
-    window.dispatchEvent(new Event(ADMIN_AUTH_CHANGED_EVENT));
-  }
-}
-
-export function clearAdminApiToken(): void {
-  setAdminApiToken("");
-}
-
 // ── 请求失败回退 example 数据 ──
 
 async function fetchOrFallback<T>(
@@ -533,7 +467,9 @@ async function fetchOrFallback<T>(
     const data = await requestJson<T>(path, init);
     return { data, source: "real" };
   } catch (error) {
-    if (isRateLimitedError(error)) throw error;
+    // 429（限流）与 401（缺 / 错 token）都**不**回落示例数据：前者要让页面显示限流提示，
+    // 后者是“没鉴权”，回落成假数据会让人误以为后端有数据（真因是没填对 token）。
+    if (isRateLimitedError(error) || isUnauthorizedError(error)) throw error;
     return { data: fallback(), source: "example" };
   }
 }
@@ -1978,4 +1914,24 @@ export async function retryUpgradePlan(
     }),
   });
   return { source: "real", data: normalizeRolloutPlan(raw) };
+}
+
+// ── 中心版本（公开端点，无鉴权） ──
+
+/**
+ * 中心（后端）版本（`GET /api/v1/version`）。
+ *
+ * **公开端点**：未带 admin token 也能取 —— 页面左下角在未登录时也要显示后端版本。契约是扁平的
+ * `{ version }`；`version` 缺失 / 不是字符串即视为契约漂移，**抛错而不是静默成空串**，让调用方
+ * （版本块）把未知一律显示成 `—`，**绝不回落示例值**（一个假的版本号比没有更误导排障）。
+ */
+export function normalizeBackendVersion(payload: unknown): string {
+  const record = payload as { version?: unknown } | null | undefined;
+  return requiredString(record?.version, "version");
+}
+
+export async function fetchBackendVersion(): Promise<string> {
+  // 走 `requestJson`：设了 token 才带 Authorization；端点公开，不带也能取。
+  const payload = await requestJson<unknown>("/api/v1/version");
+  return normalizeBackendVersion(payload);
 }

@@ -1,6 +1,6 @@
-# wist-center-web — WarpInsightCenter 全局控制中心前端
+# wist-center-web — WistCenter 全局控制中心前端
 
-WarpInsightCenter 子系统的浏览器端 WEB 前端（Jumo `module<ui> InsightCenterWeb`，`target<site,web> center-web`）。承载网关列表/实例、初始配置、版本发布与升级计划页面。
+WistCenter 子系统的浏览器端 WEB 前端（Jumo `module<ui> InsightCenterWeb`，`target<site,web> center-web`）。承载网关列表/实例、初始配置、版本发布与升级计划页面。
 
 ## 页面
 
@@ -55,7 +55,7 @@ npm run build    # tsc -b && vite build
 npx tsx generate.ts jumo-ui-model.json .   # 从 jumo-ui-model.json 生成骨架
 ```
 
-`jumo-ui-model.json` 描述 UI 结构（对应 `WarpInsightCenter/layout.mju` 的区域与类型），
+`jumo-ui-model.json` 描述 UI 结构（对应 `WistCenter/layout.mju` 的区域与类型），
 生成器产出 `src/types`、`src/store` 与组件骨架；页面设计在生成骨架上手工精修。
 注意生成器会把 `.module.css` 一并覆盖为骨架样式，**精修后的样式表不要被重新生成冲掉** ——
 重新生成后需逐文件核对 `src/components/*.module.css`。

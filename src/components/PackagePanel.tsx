@@ -1,6 +1,10 @@
 import { useRef, useState, type FormEvent } from "react";
 import { versionFromArtifactUrl, type ReleasePackage } from "../api";
-import { sha256Error } from "../sha256";
+import {
+  resolvedAssetsComponentError,
+  validateArtifactRow,
+  validateSingleArtifact,
+} from "../packageForm";
 import {
   usePublishRelease,
   usePublishReleaseBatch,
@@ -69,6 +73,7 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
   const [artifactUrl, setArtifactUrl] = useState("");
   const [expectedSha256, setExpectedSha256] = useState("");
   const [shaError, setShaError] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
   const derivedVersion = versionFromArtifactUrl(artifactUrl);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -76,10 +81,16 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
     event.preventDefault();
     const artifact = artifactUrl.trim();
     const sha = expectedSha256.trim();
-    // 摘要是**必填**：提交前先拦一道，省一次注定 400 的往返，并当场说清哪里不对。
-    const error = sha256Error(sha);
-    if (error) {
-      setShaError(error);
+    // 提交前就地校验：组件不符优先于摘要格式（省一次注定 400 的往返）。
+    const { url: urlProblem, sha: shaProblem } = validateSingleArtifact(
+      target.component,
+      artifact,
+      sha,
+    );
+    setUrlError(urlProblem);
+    if (urlProblem) return;
+    if (shaProblem) {
+      setShaError(shaProblem);
       return;
     }
     setShaError(null);
@@ -97,6 +108,7 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
           setArtifactUrl("");
           setExpectedSha256("");
           setShaError(null);
+          setUrlError(null);
         },
       },
     );
@@ -115,7 +127,11 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
             name="artifactUrl"
             required
             value={artifactUrl}
-            onChange={(event) => setArtifactUrl(event.target.value)}
+            onChange={(event) => {
+              setArtifactUrl(event.target.value);
+              if (urlError) setUrlError(null);
+            }}
+            aria-invalid={urlError ? true : undefined}
             placeholder={target.artifactPlaceholder}
           />
         </FormField>
@@ -135,6 +151,7 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
             placeholder="例如：3f9a1c0d…（64 位十六进制，可带 sha256: 前缀）"
           />
         </FormField>
+        {urlError ? <ErrorBanner>{urlError}</ErrorBanner> : null}
         {shaError ? <ErrorBanner>{shaError}</ErrorBanner> : null}
         <div className={styles.formAction}>
           <span className={styles.actionHint}>
@@ -199,12 +216,18 @@ function VariantsForm({
         });
         setRows(nextRows);
         setErrors(platforms.map(() => null));
+        // 先按来源文件名看这批制品是不是别的组件 —— 当场说清，别等下载完批量提交才报。
+        const wrongComponent = resolvedAssetsComponentError(
+          target.component,
+          result.assets.map((asset) => asset.artifactUrl),
+        );
         setResolveNote(
-          missing.length === 0
-            ? `已按 ${result.version} 填充 ${platforms.length} 个平台。`
-            : `${result.version}：已填充 ${platforms.length - missing.length} 个平台，缺少 ${missing.join(
-                " / ",
-              )}，请手动补址。`,
+          wrongComponent ??
+            (missing.length === 0
+              ? `已按 ${result.version} 填充 ${platforms.length} 个平台。`
+              : `${result.version}：已填充 ${platforms.length - missing.length} 个平台，缺少 ${missing.join(
+                  " / ",
+                )}，请手动补址。`),
         );
       },
     });
@@ -227,12 +250,10 @@ function VariantsForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // 三平台都必填且摘要格式正确，否则当场拦下（省一次注定 400 的往返）。
-    const nextErrors = platforms.map((_, index) => {
-      const row = rows[index];
-      if (!row.artifactUrl.trim()) return "请填写该平台的产物地址。";
-      return sha256Error(row.expectedSha256.trim());
-    });
+    // 三平台都必填、组件对得上、摘要格式正确，否则当场拦下（省一次注定 400 的往返）。
+    const nextErrors = rows.map((row) =>
+      validateArtifactRow(target.component, row),
+    );
     if (nextErrors.some((message) => message)) {
       setErrors(nextErrors);
       return;

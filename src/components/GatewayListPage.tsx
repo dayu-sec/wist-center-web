@@ -49,7 +49,7 @@ export function GatewayListPage() {
           <ErrorBanner>访问过于频繁，请稍候重试。</ErrorBanner>
         ) : (
           <ErrorBanner>
-            无法连接 WarpInsightCenter 管理服务，请确认后端已启动。
+            无法连接 WistCenter 管理服务，请确认后端已启动。
           </ErrorBanner>
         )
       ) : null}

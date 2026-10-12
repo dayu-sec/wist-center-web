@@ -5,6 +5,47 @@
 
 > 说明：0.1.3 之前未单独维护本文件；自 0.1.3 起记录。
 
+## [0.4.0-alpha] - 2026-10-12
+
+### 变更
+
+- **左下角常驻版本块：前端版本 + 后端版本**：左侧边栏底部显示两行 —— 前端版本取构建期注入的
+  `VITE_APP_VERSION`（运行态 = 发布 tag；dev / 本地构建缺省时由 `vite.config` 从 `version.txt` 补齐），
+  后端版本调中心新公开端点 `GET /api/v1/version`（**无鉴权**，未登录也能看到）。任一未知显示 `—`，
+  不回落示例数据；版本值统一成 `vX.Y.Z…`（发布 tag 自带 `v`，不再拼出 `vv…`）。
+  顶部状态条里那个**只显示前端**的版本随之移除（由信息更全的左下角一处替代）。
+- **产品名统一成 `WistCenter`**：浏览器标题与描述、侧边栏品牌名、连不上管理服务时的错误文案、图标
+  `aria-label`、以及 UI 模型 `jumo-ui-model.json` 的 `domain`，以前写作 `WarpInsightCenter` 的地方统一改成
+  `WistCenter` —— 与设计模型里的子系统名 `WistCenter` 对齐（此前界面名与模型名不一致）。中心后端生成到目标机上的
+  安装脚本 / 前置环境准备脚本头部注释同样改名（`wist-center` 的 `install_script.rs`）。
+  结构性标识符**不在本次范围**：`wist-control` 里那个 `@jumo generated` 的
+  `Control.InsightCenterApp.WarpInsightCenter` 模块（模型侧其实已叫 `InsightCenterApp.WistCenter`）与
+  studio 的 `jumo-layout*.json` 生成物保持原样，等模型侧重新生成时自然收敛。
+- **换图标：应用图标与应用内品牌标改成「三格蜂巢」**（三个共边六边形 = 一个中心管住一片网关，靛蓝→紫）：与网关
+  `WarpGateway`（立方体，青→蓝）刻意区分 —— 两个控制台以前是**同一个**图标（同一个 data URI，
+  同一个立方体品牌标），并排开标签页时分不清谁是谁。图标落在 `public/favicon.svg`（`index.html`
+  用 `/favicon.svg?v=1` 引用，改图标时把 `v` 往上加一位即可破缓存）。
+- **鉴权机制改走共享包 `@dayu-sec/wist-web-core/auth`**（与 wist-gateway-web 同一份）：`src/api/admin.ts`
+  里 token 的存取 / 变更通知、`ApiError`、401 / 429 归类、`{error:{code,message}}` 信封解析删除本地副本，
+  改消费共享包。依赖升到 `github:dayu-sec/wist-web-core#v0.2.0`（该 tag 含新增的 `./auth` 子路径）。
+- **无 Admin Token 时不再轮询**（`src/hooks/index.ts`）：原先各查询的 `refetchInterval` 在无 token 分支写的是
+  **30s**（有 token 才 5/10/15s）。现与网关侧对齐 —— 无 token **不轮询**（`enabled ? … : false`），
+  有 token 才按各自周期拉；意图显式，也避免将来把 `enabled` 改松后夜里偷偷发请求。
+
+### 修复
+
+- **Admin Token 输入框不再预填旧值**（`GlobalTopNavigation`）：设置后输入框（密码框）预填已存 token，
+  直接粘贴会拼成「旧+新」→「输了新 token 却一直 401」。现空框起步 + 聚焦全选，粘贴整体替换；应用后清空。
+- **清除后陈旧错误横幅不再残留**：token 变化分流 —— 设了 → 重取；清了 → `removeQueries()` 丢弃缓存与
+  错误（含上一条 401/429），否则清完横幅还挂着，看着像没生效。
+- **中心明确拒绝 token（401 + `invalid_admin_bearer_token`）时就地清除**：避免坏 token 被保留并轮询、
+  把本机 IP 打到限流封禁（429）。
+
+### 测试
+
+- 新增 `tests/admin-token-contract.test.ts`（`npm run test:admin-token`）：钉住 token 的存储键 / Bearer
+  注入 / 401 自动清 / 429 保留与 `Retry-After`；已接入 `ci.yml` 与 `release.yml`。
+
 ## [0.3.0-alpha] - 2026-10-10
 
 ### 变更

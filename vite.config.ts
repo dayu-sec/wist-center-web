@@ -1,58 +1,40 @@
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // /api 代理目标用 WARP_INSIGHT_WEB_PROXY_TARGET 覆盖（默认 127.0.0.1:3100）。
 // demo-gateway.sh 用独立端口 + 指向自己的 center，避免与 demo-insight-center 共用环境。
 // secure:false —— 中心以自签 HTTPS 起（dev **默认打开 TLS**）时，代理要接受自签证书。
+//
+// **不做任何 admin token 注入**：管理 token 是机密，由使用者在管理页面手填（存浏览器
+// sessionStorage，请求时作为 Bearer 发出）。前端与 dev server 都不碰任何后端 secret 来源
+// —— 读后端配置文件、读 env 抠 token 这类都去掉，既越界又容易出「发错 token → 401 → 限流」。
 
-/**
- * 仅 dev：从中心配置读 admin token。
- *
- * 路径可用 `WIST_CENTER_CONFIG` 覆盖，默认 `~/.wist-center/wist-center.toml`（dev 中心那份）。
- * 读不到就返回空串（代理不补 Authorization，回落到页面手填）。
- */
-function devAdminToken(): string {
-  const path =
-    process.env.WIST_CENTER_CONFIG ??
-    join(homedir(), ".wist-center", "wist-center.toml");
+// 前端版本号（`import.meta.env.VITE_APP_VERSION`）在**运行态**由 Docker 构建注入
+// （`build-arg APP_VERSION=<发布 tag>` → `ENV VITE_APP_VERSION`，见 Dockerfile / release.yml）。
+// **dev server 不注入它**，页面左下角那行会显示 `—`。这里在缺该环境变量时，用仓库根 `version.txt`
+// 补上：dev 与本地 `npm run build` 都能看到版本号；运行态仍以 APP_VERSION 为准（它优先）。
+// 想临时覆盖：`VITE_APP_VERSION=x.y.z npm run dev`。
+if (!process.env.VITE_APP_VERSION) {
   try {
-    const match = readFileSync(path, "utf8").match(
-      /^\s*admin_token\s*=\s*"([^"]*)"/m,
-    );
-    return match ? match[1] : "";
+    process.env.VITE_APP_VERSION =
+      readFileSync(resolve(process.cwd(), "version.txt"), "utf8").trim() || "dev";
   } catch {
-    return "";
+    process.env.VITE_APP_VERSION = "dev";
   }
 }
 
-export default defineConfig(({ command }) => {
-  const devToken = command === "serve" ? devAdminToken() : "";
-  return {
-    plugins: [react()],
-    server: {
-      proxy: {
-        "/api": {
-          target:
-            process.env.WARP_INSIGHT_WEB_PROXY_TARGET ?? "http://127.0.0.1:3100",
-          changeOrigin: true,
-          secure: false,
-          // 中心管理接口要 Bearer。浏览器没手填 token 时接口 401，而前端对失败**静默回落到
-          // 「示例数据」**——页面看着能用、其实全是假的（假实例 + 假接入链接）。dev 代理直接从
-          // 中心配置读 token，并在**请求没带 Authorization 时**补上：页面一打开就是真数据，
-          // 且 token 不进前端包。已手填的 token 优先（不覆盖）。
-          configure: (proxy) => {
-            if (!devToken) return;
-            proxy.on("proxyReq", (proxyReq) => {
-              if (!proxyReq.getHeader("authorization")) {
-                proxyReq.setHeader("authorization", `Bearer ${devToken}`);
-              }
-            });
-          },
-        },
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      "/api": {
+        target:
+          process.env.WARP_INSIGHT_WEB_PROXY_TARGET ?? "http://127.0.0.1:3100",
+        changeOrigin: true,
+        secure: false,
       },
     },
-  };
+  },
 });

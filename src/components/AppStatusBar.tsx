@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { matchPath, useLocation } from "react-router-dom";
-import { ADMIN_AUTH_CHANGED_EVENT, getAdminApiToken } from "../api";
-import { useExampleFallbackCount } from "../hooks";
+import {
+  useAdminToken,
+  useAuthErrorSignal,
+  useExampleFallbackCount,
+} from "../hooks";
 import styles from "./AppStatusBar.module.css";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -53,7 +56,8 @@ export function AppStatusBar() {
   const queryClient = useQueryClient();
   const fetching = useIsFetching();
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
-  const [hasToken, setHasToken] = useState(() => Boolean(getAdminApiToken()));
+  const token = useAdminToken();
+  const authError = useAuthErrorSignal();
   // 缓存里有多少查询回落到了示例数据（真实来源，而不是「有没有手填 token」）。
   const exampleFallbacks = useExampleFallbackCount();
 
@@ -66,16 +70,28 @@ export function AppStatusBar() {
     return unsubscribe;
   }, [queryClient]);
 
-  useEffect(() => {
-    const onAuthChanged = () => setHasToken(Boolean(getAdminApiToken()));
-    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
-    return () =>
-      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
-  }, []);
-
   const route = describeRoute(pathname);
   const syncing = fetching > 0;
-  const appVersion = import.meta.env.VITE_APP_VERSION;
+
+  // 鉴权问题优先展示：没 token / token 被拒是「为什么没数据」的头号原因。
+  const authIssue = !token || authError;
+  const idle = authIssue || exampleFallbacks > 0;
+  const statusText = !token
+    ? "未设置 Admin Token"
+    : authError
+      ? "Admin Token 无效"
+      : syncing
+        ? "同步中"
+        : exampleFallbacks > 0
+          ? `示例数据 ×${exampleFallbacks}`
+          : "自动刷新 5s";
+  const statusTitle = !token
+    ? "尚未填入 Admin Token：填入后才向中心拉取数据（左侧可填）"
+    : authError
+      ? "中心拒绝了当前 Admin Token（401）：请重新填入正确令牌"
+      : exampleFallbacks > 0
+        ? `${exampleFallbacks} 个查询回落到内置示例数据：后端管理接口不可达`
+        : "数据来自中心：每 5 秒自动拉取一次网关与指标";
 
   return (
     <div className={styles.bar}>
@@ -101,31 +117,22 @@ export function AppStatusBar() {
 
       <div className={styles.right}>
         {/*
-          说「示例数据」的依据是**接口自己的回落标记**（`source === "example"`），不是
-          「浏览器里有没有手填 Token」—— dev 代理在服务端补 token 时页面没有 token 也是真数据，
-          按 token 判会把真机队说成示例、也会把示例说成真的（后者更危险：会照着一份假机队建计划）。
+          「示例数据」的依据是**接口自己的回落标记**（`source === "example"`），不是「有没有手填
+          Token」。未鉴权 / 无 token 已由内容区 gate 拦在前面，不会走到这里显示假数据。
         */}
         <span
           className={
-            exampleFallbacks > 0
+            idle
               ? `${styles.pill} ${styles.pillIdle}`
               : `${styles.pill} ${styles.pillLive}`
           }
-          title={
-            exampleFallbacks > 0
-              ? `${exampleFallbacks} 个查询回落到内置示例数据：后端管理接口不可达或未鉴权（左侧可填 Admin Token）`
-              : "数据来自中心：每 5 秒自动拉取一次网关与指标"
-          }
+          title={statusTitle}
         >
           <span
-            className={syncing ? styles.dotSyncing : styles.dot}
+            className={syncing && !authIssue ? styles.dotSyncing : styles.dot}
             aria-hidden="true"
           />
-          {syncing
-            ? "同步中"
-            : exampleFallbacks > 0
-              ? `示例数据 ×${exampleFallbacks}`
-              : "自动刷新 5s"}
+          {statusText}
         </span>
 
         <span className={styles.stamp}>
@@ -142,17 +149,11 @@ export function AppStatusBar() {
           </strong>
         </span>
 
-        {appVersion && (
-          <span className={styles.version} title="前端版本">
-            v{appVersion}
-          </span>
-        )}
-
         <button
           type="button"
           className={styles.refresh}
           onClick={() => void queryClient.invalidateQueries()}
-          disabled={!hasToken}
+          disabled={!token}
         >
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
             <path

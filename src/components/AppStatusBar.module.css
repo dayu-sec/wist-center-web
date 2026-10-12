@@ -122,14 +122,6 @@
   font-weight: 600;
 }
 
-.version {
-  color: var(--text-4);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .refresh {
   display: inline-flex;
   align-items: center;
