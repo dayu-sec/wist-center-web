@@ -4,7 +4,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { ApiError } from "./api";
+import { initTheme } from "./theme";
 import "./index.css";
+
+// 首次渲染**之前**定下主题：晚一步会先按深色画一帧再跳浅色（闪一下）。
+// 切主题不重挂载组件树 —— 颜色走 CSS 变量，改 `<html data-theme>` 全站即变。
+initTheme();
 
 const queryClient = new QueryClient({
   defaultOptions: {

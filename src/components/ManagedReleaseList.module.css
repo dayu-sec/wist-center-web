@@ -110,7 +110,7 @@
 }
 
 .actionButtonRestore:hover:not(:disabled) {
-  border-color: var(--green, var(--accent));
+  border-color: var(--ok);
 }
 
 .empty {
