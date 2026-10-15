@@ -1,12 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
-import {
-  ADMIN_AUTH_CHANGED_EVENT,
-  clearAdminApiToken,
-  getAdminApiToken,
-  setAdminApiToken,
-} from "../api";
 import styles from "./GlobalTopNavigation.module.css";
 import { VersionFooter } from "./VersionFooter";
 
@@ -116,55 +108,15 @@ interface GlobalTopNavigationProps {
   children?: React.ReactNode;
 }
 
-/** 左侧全局导航：业务导航分组 + 贴底的 Admin Token 表单。 */
+/**
+ * 左侧全局导航：品牌 + 业务导航分组 + 贴底的版本块。
+ *
+ * Admin Token 不在这里了 —— 它是**会话语境**的凭证，已挪到右上角状态条上的钥匙按钮
+ * （`AdminTokenControl`），与本项目的 `wist-gateway-web` 保持一致。
+ */
 export function GlobalTopNavigation({
   children,
 }: GlobalTopNavigationProps) {
-  const queryClient = useQueryClient();
-  // 输入框**不预填已存 token**：预填旧值（还是密码框）+ 直接粘贴会拼成「旧+新」，导致「输了新
-  // token 却一直 401」。空框起步、粘贴即整体替换。
-  const [token, setToken] = useState("");
-  // 「已设置」以**实际存储**为准（经变更事件刷新），不拿输入框内容当判据。
-  const [hasStoredToken, setHasStoredToken] = useState(() =>
-    Boolean(getAdminApiToken()),
-  );
-  const [applied, setApplied] = useState(false);
-  const appliedTimer = useRef<number | undefined>(undefined);
-
-  useEffect(() => () => window.clearTimeout(appliedTimer.current), []);
-
-  useEffect(() => {
-    function onAuthChanged() {
-      const hasToken = Boolean(getAdminApiToken());
-      setHasStoredToken(hasToken);
-      // token 变了：设了 → 重新取；清了 → **丢弃**缓存（含上一条 401/429），否则清完页面上
-      // 还挂着旧横幅，看起来像「点了清除没生效」。
-      if (hasToken) {
-        void queryClient.invalidateQueries();
-      } else {
-        queryClient.removeQueries();
-      }
-    }
-    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
-    return () => {
-      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
-    };
-  }, [queryClient]);
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAdminApiToken(token);
-    setToken(""); // 不把密钥留在输入框
-    setApplied(true);
-    window.clearTimeout(appliedTimer.current);
-    appliedTimer.current = window.setTimeout(() => setApplied(false), 1600);
-  }
-
-  function handleClear() {
-    clearAdminApiToken();
-    setToken("");
-  }
-
   return (
     <aside className={styles.container}>
       {children ?? (
@@ -211,56 +163,6 @@ export function GlobalTopNavigation({
               </div>
             ))}
           </nav>
-
-          <form className={styles.authForm} onSubmit={handleSubmit}>
-            <div className={styles.authHead}>
-              <label
-                className={styles.authLabel}
-                htmlFor="warp-insight-center-token"
-              >
-                Admin Token
-              </label>
-              <span
-                className={
-                  hasStoredToken
-                    ? `${styles.authState} ${styles.authStateOn}`
-                    : styles.authState
-                }
-              >
-                {hasStoredToken ? "已设置" : "未设置"}
-              </span>
-            </div>
-            <input
-              id="warp-insight-center-token"
-              className={styles.authInput}
-              type="password"
-              autoComplete="off"
-              placeholder="粘贴管理令牌"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-            />
-            <p className={styles.authHint}>
-              仅存于本会话标签页，用于调用 Center 管理接口。
-            </p>
-            <div className={styles.authActions}>
-              <button
-                className={`${styles.authButton} ${styles.authPrimary}`}
-                type="submit"
-                disabled={!token}
-              >
-                {applied ? "已应用" : "应用"}
-              </button>
-              <button
-                className={styles.authButton}
-                type="button"
-                onClick={handleClear}
-                disabled={!hasStoredToken}
-              >
-                清除
-              </button>
-            </div>
-          </form>
 
           {/* 左下角常驻版本块：前端 + 后端版本（吸底，见 VersionFooter.module.css）。 */}
           <VersionFooter />

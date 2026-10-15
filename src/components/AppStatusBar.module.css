@@ -9,7 +9,7 @@
   height: var(--topbar-height);
   padding: 0 24px;
   border-bottom: 1px solid var(--border);
-  background: rgba(16, 26, 46, 0.82);
+  background: var(--bar-bg);
   backdrop-filter: blur(10px);
 }
 
@@ -150,4 +150,64 @@
   .stamp {
     display: none;
   }
+}
+
+/* ---------- 与 wist-gateway-web 对齐的右半边控件 ---------- */
+
+/* 图标方按钮（主题开关）：与状态胶囊同高，方形，靠 tooltip/aria 说明。 */
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.iconButton:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.iconButton:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* 状态与新鲜度之间的细分隔线。 */
+.pillDivider {
+  width: 1px;
+  height: 12px;
+  margin: 0 2px;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+/* 新鲜度（`刚刚` / `12 秒前`）：与状态同处一胶囊但不抢话。 */
+.pillFreshness {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* 轮询卡住（超过 30 秒没更新）：不能再绿着宣称「自动刷新 5s」。 */
+.pillStale {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* 刷新收成图标按钮：能力不变（title/aria-label 仍叫「刷新」），只占一个方块宽度。 */
+.refreshIconOnly {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
 }
