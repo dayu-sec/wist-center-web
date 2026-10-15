@@ -25,6 +25,7 @@ import {
   getAdminApiToken,
   publishRelease,
   publishReleaseBatch,
+  resolveCosPath,
   resolveGitHubRelease,
   retryUpgradePlan,
   rotateGatewayLinkToken,
@@ -459,6 +460,13 @@ export function usePublishReleaseBatch(component: string) {
 export function useResolveGitHubRelease() {
   return useMutation({
     mutationFn: (releaseUrl: string) => resolveGitHubRelease(releaseUrl),
+  });
+}
+
+/** 解析 COS 路径（列前缀 + 读回 sha256 元数据），供录入页一键填充。非写操作，不刷新缓存。 */
+export function useResolveCosPath() {
+  return useMutation({
+    mutationFn: (cosPath: string) => resolveCosPath(cosPath),
   });
 }
 

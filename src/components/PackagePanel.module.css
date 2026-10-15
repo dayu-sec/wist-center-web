@@ -39,7 +39,46 @@
   color: var(--text-2);
 }
 
-/* ---------- GitHub Release 一键填充 ---------- */
+/* ---------- 来源一键填充（GitHub Release / COS 路径） ---------- */
+
+.sourceTabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+}
+
+.sourceTab {
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  outline: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.sourceTab:hover {
+  color: var(--text);
+}
+
+.sourceTab:focus-visible {
+  box-shadow: var(--ring);
+}
+
+.sourceTabActive {
+  background: var(--accent-soft);
+  color: var(--text);
+}
 
 .resolveField {
   display: flex;

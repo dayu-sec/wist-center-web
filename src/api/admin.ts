@@ -140,10 +140,12 @@ export interface GatewayInstallInfo {
   initCurl: string;
   /** 控制中心 CA 信任证书；未启用 TLS 时为空。 */
   trustBundlePem: string | null;
-  /** 脚本安装命令（`curl ... | bash`）：在目标主机装 gops/gx 并拉起 gateway-stack；旧后端可能不返回。 */
-  installScriptCommand?: string;
+  /** 全量安装命令（`curl ... | bash`）：在目标主机装 gops/gx 并拉起 gateway-stack；旧后端可能不返回。 */
+  installAllCommand?: string;
   /** 前置环境准备命令（`curl ... | bash`）：补 tar/docker/compose；旧后端可能不返回。 */
   prepareCommand?: string;
+  /** 「只装 gwlinkd」命令（`curl ... | bash`）：网关已部署时只补装宿主侧 wist-gwlinkd；旧后端可能不返回。 */
+  installLinkdCommand?: string;
 }
 
 /** 创建网关实例返回：**仅实例视图**。接入凭据不在 create 响应里交付（设计 §8）。 */
@@ -636,16 +638,16 @@ function normalizeGatewayInstallInfo(payload: any): GatewayInstallInfo {
       pick(payload, "trust_bundle_pem", "trustBundlePem") == null
         ? null
         : String(pick(payload, "trust_bundle_pem", "trustBundlePem")),
-    installScriptCommand: (() => {
-      const raw = pick(
-        payload,
-        "install_script_command",
-        "installScriptCommand",
-      );
+    installAllCommand: (() => {
+      const raw = pick(payload, "install_all_command", "installAllCommand");
       return raw == null ? undefined : String(raw);
     })(),
     prepareCommand: (() => {
       const raw = pick(payload, "prepare_command", "prepareCommand");
+      return raw == null ? undefined : String(raw);
+    })(),
+    installLinkdCommand: (() => {
+      const raw = pick(payload, "install_linkd_command", "installLinkdCommand");
       return raw == null ? undefined : String(raw);
     })(),
   };
@@ -1731,6 +1733,23 @@ export interface ResolvedGitHubRelease {
 }
 
 /**
+ * 解析响应归一化：GitHub Release 与 COS 路径两个解析接口**同形**
+ * （`{version, assets:[{name, artifact_url, sha256, platform}]}`），共用这一份。
+ */
+function normalizeResolvedRelease(raw: any): ResolvedGitHubRelease {
+  const assets = Array.isArray(raw?.assets) ? raw.assets : [];
+  return {
+    version: typeof raw?.version === "string" ? raw.version : "",
+    assets: assets.map((asset: any) => ({
+      name: String(asset?.name ?? ""),
+      artifactUrl: String(asset?.artifact_url ?? asset?.artifactUrl ?? ""),
+      sha256: typeof asset?.sha256 === "string" ? asset.sha256 : null,
+      platform: typeof asset?.platform === "string" ? asset.platform : null,
+    })),
+  };
+}
+
+/**
  * 解析 GitHub Release 页面地址：拉出 tag（版本）与各平台制品地址（含 sha256），供录入页一键填充。
  *
  * **刻意不回落示例**：这是解析请求，失败要冒出来。
@@ -1742,16 +1761,23 @@ export async function resolveGitHubRelease(
     method: "POST",
     body: JSON.stringify({ release_url: releaseUrl }),
   });
-  const assets = Array.isArray(raw?.assets) ? raw.assets : [];
-  return {
-    version: typeof raw?.version === "string" ? raw.version : "",
-    assets: assets.map((asset: any) => ({
-      name: String(asset?.name ?? ""),
-      artifactUrl: String(asset?.artifact_url ?? asset?.artifactUrl ?? ""),
-      sha256: typeof asset?.sha256 === "string" ? asset.sha256 : null,
-      platform: typeof asset?.platform === "string" ? asset.platform : null,
-    })),
-  };
+  return normalizeResolvedRelease(raw);
+}
+
+/**
+ * 解析 COS 路径（桶/组件/版本，如 `wist-1347593047/wist-gwlinkd/v0.9.3-alpha`）：中心列出该前缀下的
+ * 制品、逐个读回 sha256 元数据，供录入页一键填充（与 GitHub 解析**同形**）。
+ *
+ * **刻意不回落示例**：这是解析请求，失败要冒出来。
+ */
+export async function resolveCosPath(
+  cosPath: string,
+): Promise<ResolvedGitHubRelease> {
+  const raw = await requestJson<any>("/api/v1/admin/cos/resolve", {
+    method: "POST",
+    body: JSON.stringify({ cos_path: cosPath }),
+  });
+  return normalizeResolvedRelease(raw);
 }
 
 export async function fetchUpgradePlans(): Promise<

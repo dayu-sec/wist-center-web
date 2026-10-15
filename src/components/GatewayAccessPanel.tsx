@@ -9,7 +9,10 @@ function base64UrlEncode(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 /**
@@ -17,7 +20,11 @@ function base64UrlEncode(text: string): string {
  * 网关「链接上级」页只收这一条 URL，解出三者后提交给本机网关。
  * 注意：这是**复制粘贴的凭据串**（不点开、不进地址栏），故容忍券/CA 在 URL 里。
  */
-function buildLinkUrl(initUrl: string, linkToken: string, caPem: string | null): string {
+function buildLinkUrl(
+  initUrl: string,
+  linkToken: string,
+  caPem: string | null,
+): string {
   const url = new URL(initUrl);
   url.searchParams.set("link_token", linkToken);
   if (caPem) url.searchParams.set("ca", base64UrlEncode(caPem));
@@ -50,7 +57,9 @@ function CodeBlock({
 
   function handleDownload() {
     if (!filename) return;
-    const blobUrl = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
+    const blobUrl = URL.createObjectURL(
+      new Blob([code], { type: "text/plain" }),
+    );
     const anchor = document.createElement("a");
     anchor.href = blobUrl;
     anchor.download = filename;
@@ -95,10 +104,12 @@ interface IssuedLinkToken {
   initUrl: string;
   trustBundlePem: string | null;
   expiresAt: string | null;
-  /** 脚本安装命令（`curl ... | bash`）；后端未返回时为空。 */
-  installScriptCommand?: string;
+  /** 全量安装命令（`curl ... | bash`）；后端未返回时为空。 */
+  installAllCommand?: string;
   /** 前置环境准备命令（`curl ... | bash`）；后端未返回时为空。 */
   prepareCommand?: string;
+  /** 「只装 gwlinkd」命令（`curl ... | bash`）；后端未返回时为空。 */
+  installLinkdCommand?: string;
 }
 
 /**
@@ -148,8 +159,9 @@ export function GatewayAccessPanel({
         initUrl: install.initUrl,
         trustBundlePem: install.trustBundlePem,
         expiresAt: result.data.linkExpiresAt,
-        installScriptCommand: install.installScriptCommand,
+        installAllCommand: install.installAllCommand,
         prepareCommand: install.prepareCommand,
+        installLinkdCommand: install.installLinkdCommand,
       });
       void queryClient.invalidateQueries({ queryKey: ["gateway-instances"] });
     } catch (cause) {
@@ -174,8 +186,9 @@ export function GatewayAccessPanel({
       <header className={styles.cardHeader}>
         <h2 className={styles.cardTitle}>安装与接入上级控制中心</h2>
         <p className={styles.cardSubtitle}>
-          签发一次性接入券后，页面上同时给出两类材料：**脚本安装命令**（在目标主机把 gops/gx
-          与 gateway-stack 拉起来）与**接入链接**（粘到**本机网关**的「链接上级」页，宿主侧
+          签发一次性接入券后，页面上同时给出两类材料：**脚本安装命令**（在目标主机把
+          gops/gx 与 gateway-stack
+          拉起来）与**接入链接**（粘到**本机网关**的「链接上级」页，宿主侧
           wist-gwlinkd 环回拉取并完成接入）。两条命令都带同一张一次性接入券。
         </p>
       </header>
@@ -228,7 +241,8 @@ export function GatewayAccessPanel({
               <div>
                 <span className={styles.infoLabel}>环境准备（前置）</span>
                 <p className={styles.tokenHint}>
-                  在目标主机上先执行这条命令，补齐 tar / docker / docker compose（缺则装，可重复跑）。
+                  在目标主机上先执行这条命令，补齐 tar / docker / docker
+                  compose（缺则装，可重复跑）。
                 </p>
               </div>
             </div>
@@ -258,16 +272,17 @@ export function GatewayAccessPanel({
               <div>
                 <span className={styles.infoLabel}>脚本安装网关</span>
                 <p className={styles.tokenHint}>
-                  在目标主机上执行这条命令：装 gops/gx → 生成工程 → 导入 gateway-stack
-                  → 本地化 → 拉取制品 → 启动 → 装宿主侧 wist-gwlinkd（网关接入器）。
+                  在目标主机上执行这条命令：装 gops/gx → 生成工程 → 导入
+                  gateway-stack → 本地化 → 拉取制品 → 启动 → 装宿主侧
+                  wist-gwlinkd（网关接入器）。
                 </p>
               </div>
             </div>
 
-            {issued?.installScriptCommand ? (
+            {issued?.installAllCommand ? (
               <CodeBlock
                 label="安装代码（curl … | bash）"
-                code={issued.installScriptCommand}
+                code={issued.installAllCommand}
                 hint={
                   issued.expiresAt
                     ? `全新安装需先设定网关对外域名（脚本会提示输入，或 GATEWAY_DOMAIN=gw.example.com bash）。命令带一次性接入券，有效期至 ${formatDateTime(issued.expiresAt)}，过期请重新轮换。`
@@ -291,7 +306,9 @@ export function GatewayAccessPanel({
           <div className={styles.stepBody}>
             <div className={styles.stepHead}>
               <div>
-                <span className={styles.infoLabel}>粘到网关的「链接上级」页</span>
+                <span className={styles.infoLabel}>
+                  粘到网关的「链接上级」页
+                </span>
                 <p className={styles.tokenHint}>
                   在网关管理界面打开「链接上级」，把这一条接入链接粘进输入框并提交。
                 </p>
@@ -322,6 +339,36 @@ export function GatewayAccessPanel({
           </div>
         </li>
       </ol>
+
+      <div className={styles.stepBody}>
+        <div className={styles.stepHead}>
+          <div>
+            <span className={styles.infoLabel}>
+              网关已经部署过了？只补装 gwlinkd
+            </span>
+            <p className={styles.tokenHint}>
+              gateway-stack
+              已在目标主机跑起来、只差宿主侧接入器时，用这条命令单独装
+              wist-gwlinkd（不重装网关本体；在已部署的 gops
+              工程根执行）。装完再到网关的 「链接上级」页完成接入。
+            </p>
+          </div>
+        </div>
+
+        {issued?.installLinkdCommand ? (
+          <CodeBlock
+            label="只装 gwlinkd（curl … | bash）"
+            code={issued.installLinkdCommand}
+            hint="在已部署的 gops 工程根运行；命令带同一张一次性接入券（短命）。"
+          />
+        ) : (
+          <p className={styles.curlPlaceholder}>
+            {enrolled
+              ? "这台网关已接入：要补装宿主接入器，先点上面的「重新签发」生成新的接入券。"
+              : "先点上面的「生成/轮换接入券」，这里会出现只装 gwlinkd 的命令。"}
+          </p>
+        )}
+      </div>
     </section>
   );
 }
