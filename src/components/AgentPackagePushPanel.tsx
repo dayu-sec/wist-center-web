@@ -19,10 +19,11 @@ import {
 } from "@dayu-sec/wist-web-core/release";
 import { GatewayTargetBlock } from "./GatewayTargetBlock";
 import { selectGatewayUpgradeTargets } from "./gatewayUpgradeTargets";
+import { AGENT_PACKAGE_COMPONENTS } from "./releaseComponents";
 import styles from "./PlanForm.module.css";
 
 /** ② 只发这一个组件：把 `wist-agentd` 包交给网关包管理，**升不升由网关决定**。 */
-const COMPONENTS = ["wist-agentd"] as const;
+const COMPONENTS = AGENT_PACKAGE_COMPONENTS;
 
 /** `datetime-local` 的默认截止（24h 后），转成控件要的 `YYYY-MM-DDTHH:mm`。 */
 function defaultDeadlineLocal(): string {

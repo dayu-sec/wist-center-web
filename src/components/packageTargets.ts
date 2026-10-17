@@ -33,6 +33,9 @@ const THREE_PLATFORMS: PlatformSlot[] = [
  * 多平台（`platforms`）的是 agentd / galaxy-ops / galaxy-flow / gwlinkd；gateway-stack 是**单制品**
  * （`wist-gateway-stack-<version>.tar.gz`，包名里没有 target-triple）—— 不带 `platforms`。
  *
+ * 四类可直接进「发布 ① 升级安装」（gwlinkd 由宿主侧常驻自更新：覆盖后重启并核对版本）；
+ * agentd 走「发布 ② Agent 包下发」。
+ *
  * 列表页与录入页共用这一份目标定义，避免两处漂移。
  */
 export const RELEASE_TARGETS: PackageTarget[] = [

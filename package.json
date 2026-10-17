@@ -10,6 +10,7 @@
     "test:artifact-name": "tsx tests/artifact-name.test.ts",
     "test:package-form": "tsx tests/package-form.test.ts",
     "test:gateway-targets": "tsx tests/gateway-upgrade-targets.test.ts",
+    "test:release-components": "tsx tests/release-components.test.ts",
     "test:admin-token": "tsx tests/admin-token-contract.test.ts",
     "test:theme": "tsx tests/theme-contract.test.ts",
     "test:version": "tsx tests/version-contract.test.ts",

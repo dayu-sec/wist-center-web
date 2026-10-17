@@ -35,6 +35,10 @@ jobs:
       - name: Contract tests
         run: npm run test:agent-package-push
 
+      # 发布页的组件契约：① 含 gwlinkd、② 只发 agentd、① 组件都能在包管理里选到版本。
+      - name: Test (release components)
+        run: npm run test:release-components
+
       # 管理 token 的传输机制（存哪 / Bearer 注入 / 401 自动清 / 429 保留 + Retry-After）。
       - name: Test (admin token mechanism)
         run: npm run test:admin-token

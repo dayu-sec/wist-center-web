@@ -10,13 +10,18 @@ import styles from "./ReleaseWorkspace.module.css";
 type ReleaseFlow = "upgrade" | "agent-package";
 
 const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
-  { key: "upgrade", name: "① 升级安装", tagline: "stack / gops / gx" },
+  {
+    key: "upgrade",
+    name: "① 升级安装",
+    tagline: "stack / gops / gx / gwlinkd",
+  },
   { key: "agent-package", name: "② Agent 包下发", tagline: "推到网关包管理" },
 ];
 
 /**
  * 发布：把**中心托管的包**装出去，两种（区别在「谁决定升级」）：
- * ① 升级安装 —— `wist-gateway-stack` / `galaxy-ops` / `galaxy-flow` 推到网关，中心决定、装下去；
+ * ① 升级安装 —— `wist-gateway-stack` / `galaxy-ops` / `galaxy-flow` / `wist-gwlinkd` 推到网关，
+ *    中心决定、装下去（gwlinkd 自己覆盖二进制，重启后核对版本回执）；
  * ② Agent 包下发 —— `wist-agentd` 推到网关的包管理，是否升级由网关决定。
  *
  * 包本身的录入/历史见「安装包管理」页。

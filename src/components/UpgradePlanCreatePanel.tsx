@@ -19,14 +19,12 @@ import {
 } from "@dayu-sec/wist-web-core/release";
 import { GatewayTargetBlock } from "./GatewayTargetBlock";
 import { selectGatewayUpgradeTargets } from "./gatewayUpgradeTargets";
+import { UPGRADE_COMPONENTS } from "./releaseComponents";
 import styles from "./PlanForm.module.css";
 
-// ① 升级安装的目标组件：stack / gops / gx（agentd 走 ②「Agent 包下发」，由网关决定升级）。
-const COMPONENTS = [
-  "wist-gateway-stack",
-  "galaxy-ops",
-  "galaxy-flow",
-] as const;
+// ① 升级安装的目标组件（契约在 `releaseComponents`）：stack / gops / gx / gwlinkd。
+// gwlinkd 是宿主侧常驻：中心把它当独立组件托管，gwlinkd 自己就地覆盖并在重启后核对版本回执。
+const COMPONENTS = UPGRADE_COMPONENTS;
 
 /** `datetime-local` 的默认截止（24h 后），转成控件要的 `YYYY-MM-DDTHH:mm`。 */
 function defaultDeadlineLocal(): string {
@@ -195,6 +193,11 @@ export function UpgradePlanCreatePanel() {
               </button>
             </div>
           ))}
+          {targets.length > 1 ? (
+            <span className={styles.formNote}>
+              网关一次只驱动第一个目标；要升多个组件请分别建计划。
+            </span>
+          ) : null}
         </div>
 
         <GatewayTargetBlock
