@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { rotateGatewayLinkToken } from "../api";
+import { CodeBlock } from "./CodeBlock";
 import { ErrorBanner, formatDateTime } from "./ui";
 import styles from "./GatewayInstanceDetailPage.module.css";
 
@@ -29,73 +30,6 @@ function buildLinkUrl(
   url.searchParams.set("link_token", linkToken);
   if (caPem) url.searchParams.set("ca", base64UrlEncode(caPem));
   return url.toString();
-}
-
-/** 代码块：展示 + 复制（可选下载）。 */
-function CodeBlock({
-  label,
-  code,
-  filename,
-  hint,
-}: {
-  label: string;
-  code: string;
-  filename?: string;
-  hint?: string;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // 剪贴板不可用时保留可选中的原始文本。
-    }
-  }
-
-  function handleDownload() {
-    if (!filename) return;
-    const blobUrl = URL.createObjectURL(
-      new Blob([code], { type: "text/plain" }),
-    );
-    const anchor = document.createElement("a");
-    anchor.href = blobUrl;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(blobUrl);
-  }
-
-  return (
-    <div className={styles.curlBlock}>
-      <div className={styles.curlHeader}>
-        <div>
-          <span className={styles.infoLabel}>{label}</span>
-          {hint ? <p className={styles.curlHint}>{hint}</p> : null}
-        </div>
-        <div>
-          {filename ? (
-            <button
-              type="button"
-              className={styles.curlCopyButton}
-              onClick={handleDownload}
-            >
-              下载
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className={styles.curlCopyButton}
-            onClick={handleCopy}
-          >
-            {copied ? "已复制" : "复制"}
-          </button>
-        </div>
-      </div>
-      <pre className={styles.curlCode}>{code}</pre>
-    </div>
-  );
 }
 
 /** 已签发的一次性接入券及随附接入物（仅内存持有，刷新即丢）。 */

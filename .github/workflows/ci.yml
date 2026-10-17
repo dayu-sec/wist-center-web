@@ -39,6 +39,10 @@ jobs:
       - name: Test (release components)
         run: npm run test:release-components
 
+      # 网关详情页手动升级：单目标 / 单阶段 / 版本去 v 前缀 / spec 与发布页同源。
+      - name: Test (manual gateway upgrade)
+        run: npm run test:manual-upgrade
+
       # 管理 token 的传输机制（存哪 / Bearer 注入 / 401 自动清 / 429 保留 + Retry-After）。
       - name: Test (admin token mechanism)
         run: npm run test:admin-token

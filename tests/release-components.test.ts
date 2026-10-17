@@ -1,6 +1,9 @@
 import {
   AGENT_PACKAGE_COMPONENTS,
+  MANUAL_GATEWAY_UPGRADE_COMPONENTS,
   UPGRADE_COMPONENTS,
+  manualUpgradeComponentLabel,
+  normalizeReleaseVersion,
 } from "../src/components/releaseComponents";
 import { RELEASE_TARGETS } from "../src/components/packageTargets";
 
@@ -71,6 +74,44 @@ assert(stack !== undefined, "包管理缺少 wist-gateway-stack 目标");
 assert(
   stack?.platforms === undefined,
   "wist-gateway-stack 是单制品，不应带 platforms",
+);
+
+// 网关详情页「手动升级」只开放 gwlink + gateway-stack，且两者必须也在 ① 里。
+assert(
+  MANUAL_GATEWAY_UPGRADE_COMPONENTS.length === 2 &&
+    MANUAL_GATEWAY_UPGRADE_COMPONENTS.includes("wist-gwlinkd") &&
+    MANUAL_GATEWAY_UPGRADE_COMPONENTS.includes("wist-gateway-stack"),
+  `手动升级组件应为 gwlinkd + gateway-stack：${MANUAL_GATEWAY_UPGRADE_COMPONENTS.join(",")}`,
+);
+for (const component of MANUAL_GATEWAY_UPGRADE_COMPONENTS) {
+  assert(
+    upgrade.includes(component),
+    `手动升级组件 ${component} 必须同时是 ① 升级组件`,
+  );
+}
+
+// 展示名保留中心组件名，同时给出用户常用简称。
+assert(
+  manualUpgradeComponentLabel("wist-gwlinkd").includes("gwlink"),
+  manualUpgradeComponentLabel("wist-gwlinkd"),
+);
+assert(
+  manualUpgradeComponentLabel("wist-gateway-stack").includes("gateway-stack"),
+  manualUpgradeComponentLabel("wist-gateway-stack"),
+);
+
+// 版本 / 命名归一化：去空白 + 去前导 v/V；其余原样。
+assert(
+  normalizeReleaseVersion("  v0.12.0-alpha  ") === "0.12.0-alpha",
+  normalizeReleaseVersion("  v0.12.0-alpha  "),
+);
+assert(
+  normalizeReleaseVersion("V0.12.0-alpha") === "0.12.0-alpha",
+  normalizeReleaseVersion("V0.12.0-alpha"),
+);
+assert(
+  normalizeReleaseVersion("0.12.0-alpha") === "0.12.0-alpha",
+  normalizeReleaseVersion("0.12.0-alpha"),
 );
 
 console.log("release components: OK");

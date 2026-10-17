@@ -18,6 +18,7 @@ import {
   fetchGatewayInitialConfig,
   fetchGatewayStatus,
   fetchGatewayStatusView,
+  fetchGatewayUpgradeScript,
   fetchGatewayUptime,
   fetchReleases,
   fetchUpgradePlan,
@@ -35,6 +36,7 @@ import {
   type CreateGatewayInstanceCommand,
   type CreateUpgradePlanCommand,
   type GetGatewayInitialConfigCommand,
+  type GatewayUpgradeScriptCommand,
   type PlanRefCommand,
   type PublishReleaseBatchCommand,
   type PublishReleaseCommand,
@@ -513,6 +515,18 @@ export function useCreateUpgradePlan() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
     },
+  });
+}
+
+/**
+ * 生成单台网关的**手动升级执行脚本**（不建计划、不下发任务）。
+ *
+ * 写类操作：失败要冒出来（不回落示例数据），由页面直接展示错误。
+ */
+export function useGatewayUpgradeScript() {
+  return useMutation({
+    mutationFn: (command: GatewayUpgradeScriptCommand) =>
+      fetchGatewayUpgradeScript(command),
   });
 }
 

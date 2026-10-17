@@ -7,7 +7,7 @@ WistCenter 子系统的浏览器端 WEB 前端（Jumo `module<ui> InsightCenterW
 | 路由 | 页面 | 用例 |
 |---|---|---|
 | `/` | 网关态势（列表 + 全局概览） | ViewGatewayStatus |
-| `/gateways/:gatewayId` | 网关详情（状态 / 生命周期 / Agent） | ViewGatewayStatus |
+| `/gateways/:gatewayId` | 网关详情（状态 / 生命周期 / Agent / 手动升级脚本） | ViewGatewayStatus |
 | `/instance` | 网关管理（实例总览 + 创建） | CreateGatewayInstance / BindGatewayCustomer |
 | `/instance/:gatewayId` | 实例详情（接入材料 / 生命周期） | GetInitialConfig |
 | `/packages` | 安装包管理（中心托管包列表 / 状态） | — |

@@ -53,6 +53,11 @@
   margin-bottom: 8px;
 }
 
+/* 两控件的行（手动升级：组件 + 版本）：不要为没有的第三列留空。 */
+.targetRowTwo {
+  grid-template-columns: 1fr 1fr;
+}
+
 .targetRow:last-child {
   margin-bottom: 0;
 }

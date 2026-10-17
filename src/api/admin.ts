@@ -16,6 +16,10 @@ import {
   readAdminApiError,
 } from "@dayu-sec/wist-web-core/auth";
 
+// 升级计划 spec 的口径抽到纯模块：页面 / 手动升级 / 契约测试共用一份。
+import { jsonUpgradeSpec, type UpgradeTarget } from "../upgradeSpec";
+export { jsonUpgradeSpec, type UpgradeTarget };
+
 export type GatewayStatus = "online" | "offline" | (string & {});
 export type GatewayHealth = "healthy" | "degraded" | "unhealthy" | "unknown";
 
@@ -215,12 +219,6 @@ export interface ReleasePackage {
   publishedAt: string;
 }
 
-/** 结构化升级目标（前端入参；落到计划 `spec` 的 `{"targets":[…]}`）。 */
-export interface UpgradeTarget {
-  component: string;
-  targetVersion: string;
-}
-
 /** 灰度发布计划里的一个阶段（模型 `Control.Rollout.RolloutPhase`）。 */
 export interface RolloutPhase {
   phaseIndex: number;
@@ -276,20 +274,6 @@ export interface RolloutPlanDetail {
  * `edge/agent-package-push-to-gateways.md`。
  */
 export const AGENT_PACKAGE_PUSH_ACTION = "push-agent-package";
-
-/** 拼 `upgrade` 动作的 `spec`（与中心/网关两端的计划口径同形）。 */
-export function jsonUpgradeSpec(targets: UpgradeTarget[]): string {
-  return JSON.stringify({
-    targets: targets.map((target) => ({
-      component: target.component,
-      // 版本**可省**（留空就不写）：升级器回落用「包内 agentd 自报的版本」
-      // —— 与网关侧 `jsonUpgradeSpec` 同一取舍。
-      ...(target.targetVersion.trim()
-        ? { target_version: target.targetVersion.trim() }
-        : {}),
-    })),
-  });
-}
 
 export interface GlobalPolicyDispatch {
   dispatchId: string;
@@ -357,6 +341,26 @@ export interface CreateUpgradePlanCommand {
 
 export interface PlanRefCommand {
   planId: string;
+}
+
+/** 手动升级脚本请求：网关 + 组件（支持 gwlink / gateway-stack 命名）+ 版本命名。 */
+export interface GatewayUpgradeScriptCommand {
+  gatewayId: string;
+  component: string;
+  version: string;
+}
+
+/** 中心生成的手动升级脚本（页面展示 / 下载）。 */
+export interface GatewayUpgradeScript {
+  gatewayId: string;
+  component: string;
+  version: string;
+  filename: string;
+  script: string;
+  /** `curl ... | bash` 一行命令（短命签名）。 */
+  command: string;
+  /** 命令过期时刻（RFC3339）。 */
+  expiresAt: string;
 }
 
 /** 重派一份计划的失败目标；`targetIds` 省略 / 为空 = 该计划里**所有**失败目标。 */
@@ -1888,6 +1892,42 @@ export async function createUpgradePlan(
     }),
   });
   return { source: "real", data: normalizeRolloutPlan(raw) };
+}
+
+/**
+ * 生成单台网关的**手动升级执行脚本**（`POST /api/v1/admin/gateways/{id}/upgrade-script`）。
+ *
+ * **刻意不回落示例**：脚本是拿回宿主执行的凭据，回落示例会把"其实没生成"伪装成一段可执行命令
+ * （与 `publishRelease` / `createUpgradePlan` 同一取舍）。真实失败让它冒出来。
+ */
+export async function fetchGatewayUpgradeScript(
+  command: GatewayUpgradeScriptCommand,
+): Promise<GatewayUpgradeScript> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/gateways/${encodeURIComponent(command.gatewayId)}/upgrade-script`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        component: command.component,
+        version: command.version,
+      }),
+    },
+  );
+  return {
+    gatewayId: requiredString(
+      pick(raw, "gateway_id", "gatewayId"),
+      "upgradeScript.gatewayId",
+    ),
+    component: requiredString(raw.component, "upgradeScript.component"),
+    version: requiredString(raw.version, "upgradeScript.version"),
+    filename: requiredString(raw.filename, "upgradeScript.filename"),
+    script: requiredString(raw.script, "upgradeScript.script"),
+    command: requiredString(raw.command, "upgradeScript.command"),
+    expiresAt: requiredString(
+      pick(raw, "expires_at", "expiresAt"),
+      "upgradeScript.expiresAt",
+    ),
+  };
 }
 
 /**

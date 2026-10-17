@@ -20,6 +20,7 @@ import {
 } from "./ui";
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
+import { GatewayManualUpgradePanel } from "./GatewayManualUpgradePanel";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
 import { GatewayVersionText } from "./GatewayVersionText";
 import styles from "./GatewayDetailPage.module.css";
@@ -145,6 +146,15 @@ export function GatewayDetailPage() {
               />
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {gateway ? (
+        <section className={styles.section}>
+          <GatewayManualUpgradePanel
+            gatewayId={gateway.gatewayId}
+            gatewayStatus={gateway.status}
+          />
         </section>
       ) : null}
 
