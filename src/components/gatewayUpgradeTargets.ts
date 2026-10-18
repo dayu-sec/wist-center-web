@@ -42,3 +42,21 @@ export function selectGatewayUpgradeTargets(
     offlineCount: gateways.length - targetIds.length,
   };
 }
+
+/** 计划目标里**没选版本**的组件（去重、保持输入顺序）。
+ *
+ * 中心按 `(component, target_version)` 反查已发布制品；版本留空时派生不出地址，
+ * 计划下发后网关无事可做（旧 gwlinkd 甚至会静默跳过），条目永远停在「已下发」。
+ * 所以「版本没选」必须在**创建前**拦住，而不是等现场发现没有反馈。
+ */
+export function targetsMissingVersion(
+  targets: readonly { component: string; targetVersion: string }[],
+): string[] {
+  const missing: string[] = [];
+  for (const target of targets) {
+    if (!target.targetVersion.trim() && !missing.includes(target.component)) {
+      missing.push(target.component);
+    }
+  }
+  return missing;
+}

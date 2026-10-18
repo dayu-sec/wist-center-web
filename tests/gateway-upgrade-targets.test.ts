@@ -1,4 +1,7 @@
-import { selectGatewayUpgradeTargets } from "../src/components/gatewayUpgradeTargets";
+import {
+  selectGatewayUpgradeTargets,
+  targetsMissingVersion,
+} from "../src/components/gatewayUpgradeTargets";
 
 // 契约测试：建升级计划时**目标怎么确定**（与 gateway-web 的「Agent 升级」同一套口径）。
 //
@@ -63,6 +66,33 @@ selectGatewayUpgradeTargets(fleet);
 assert(
   fleet.map((gateway) => gateway.gatewayId).join(",") === before,
   "不得就地排序 / 改写入参",
+);
+
+// ── 目标版本必选：留空时中心派生不出制品（计划会永远停在「已下发」） ──────────────
+assert(
+  targetsMissingVersion([{ component: "wist-gwlinkd", targetVersion: "" }]).join(",") ===
+    "wist-gwlinkd",
+  "未选版本要能指出是哪个组件",
+);
+assert(
+  targetsMissingVersion([
+    { component: "wist-gateway-stack", targetVersion: "v0.1.46-alpha" },
+    { component: "wist-gwlinkd", targetVersion: "   " },
+  ]).join(",") === "wist-gwlinkd",
+  "空白字符串也算未选",
+);
+assert(
+  targetsMissingVersion([
+    { component: "a", targetVersion: "" },
+    { component: "a", targetVersion: "" },
+  ]).length === 1,
+  "同一组件重复出现只报一次",
+);
+assert(
+  targetsMissingVersion([
+    { component: "wist-gateway-stack", targetVersion: "v0.1.46-alpha" },
+  ]).length === 0,
+  "都选了版本时不得阻止提交",
 );
 
 console.log("gateway upgrade targets: OK");

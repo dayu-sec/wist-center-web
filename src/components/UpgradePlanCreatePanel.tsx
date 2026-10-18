@@ -18,7 +18,7 @@ import {
   planPhases,
 } from "@dayu-sec/wist-web-core/release";
 import { GatewayTargetBlock } from "./GatewayTargetBlock";
-import { selectGatewayUpgradeTargets } from "./gatewayUpgradeTargets";
+import { selectGatewayUpgradeTargets, targetsMissingVersion } from "./gatewayUpgradeTargets";
 import { UPGRADE_COMPONENTS } from "./releaseComponents";
 import styles from "./PlanForm.module.css";
 
@@ -111,13 +111,16 @@ export function UpgradePlanCreatePanel() {
   // 截止时间非法（空 / 残缺）直接禁提交：`new Date(...).toISOString()` 在 Invalid Date 上会抛。
   const deadline = new Date(deadlineLocal);
   const deadlineValid = !Number.isNaN(deadline.getTime());
+  // 版本必选：中心按版本反查制品；留空派生不出地址（计划会永远 "已下发" 而没有任何反馈）。
+  const missingVersion = targetsMissingVersion(targets);
   const canSubmit =
     !mutation.isPending &&
     !exampleData &&
     selected.length > 0 &&
     !phasePlan.error &&
     deadlineValid &&
-    timeoutSeconds > 0;
+    timeoutSeconds > 0 &&
+    missingVersion.length === 0;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -337,6 +340,12 @@ export function UpgradePlanCreatePanel() {
             {mutation.isPending ? "创建中…" : "创建升级计划"}
           </PrimaryButton>
         </div>
+        {missingVersion.length > 0 ? (
+          <div className={styles.formError} role="alert">
+            请先选择目标版本：{missingVersion.join("、")}。
+            中心按版本反查制品，留空无法下发。
+          </div>
+        ) : null}
       </form>
       {mutation.error ? (
         <ErrorBanner>创建失败：{String(mutation.error)}</ErrorBanner>
@@ -349,7 +358,7 @@ export function UpgradePlanCreatePanel() {
             [
               "目标",
               targets
-                .map((t) => `${t.component} ${t.targetVersion || "（包内版本）"}`)
+                .map((t) => `${t.component} ${t.targetVersion}`)
                 .join("，"),
             ],
             [
