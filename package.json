@@ -12,6 +12,7 @@
     "test:package-form": "tsx tests/package-form.test.ts",
     "test:gateway-targets": "tsx tests/gateway-upgrade-targets.test.ts",
     "test:release-components": "tsx tests/release-components.test.ts",
+    "test:package-sources": "tsx tests/package-sources-contract.test.ts",
     "test:manual-upgrade": "tsx tests/manual-upgrade.test.ts",
     "test:admin-token": "tsx tests/admin-token-contract.test.ts",
     "test:theme": "tsx tests/theme-contract.test.ts",

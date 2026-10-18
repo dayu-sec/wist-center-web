@@ -21,7 +21,7 @@ export function PackageAddPage() {
   return (
     <PageShell
       title="安装包录入"
-      summary="按组件录入来源（镜像制品）：版本号自动从包地址解析，摘要必填。已托管包一览见「安装包管理」。"
+      summary="按组件录入来源（镜像制品）：以最近录入的版本为基准自动探测最新，也可手动指定版本 / 地址；摘要必填。已托管包一览见「安装包管理」。"
     >
       <div className={pageStyles.content}>
         <div className={pageStyles.pageActions}>
@@ -66,7 +66,7 @@ export function PackageAddPage() {
           aria-labelledby={`package-tab-${activeTarget.component}`}
           className={styles.tabPanel}
         >
-          <PackagePanel target={activeTarget} />
+          <PackagePanel key={activeTarget.component} target={activeTarget} />
         </div>
       </section>
     </PageShell>

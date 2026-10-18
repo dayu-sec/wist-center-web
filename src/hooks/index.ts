@@ -20,6 +20,8 @@ import {
   fetchGatewayStatusView,
   fetchGatewayUpgradeScript,
   fetchGatewayUptime,
+  fetchPackageLatest,
+  fetchPackageSources,
   fetchReleases,
   fetchUpgradePlan,
   fetchUpgradePlans,
@@ -264,6 +266,44 @@ export function useGatewayList() {
 }
 
 /** 一次拉取多个网关的在线率，返回 { gateway_id: uptime|null } 映射（列表页用）。 */
+/**
+ * 自动探测最新版本（GitHub 列 releases / COS 从已知版本往后探）。
+ *
+ * 只在组件/基准版本/来源变化时重取；`staleTime` 内不因窗口聚焦重复探测。
+ */
+export function usePackageLatest(
+  component: string,
+  baseVersion?: string,
+  source?: "github" | "cos",
+) {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken()) && Boolean(component);
+  return useQuery({
+    queryKey: ["package-latest", component, baseVersion ?? "", source ?? ""],
+    queryFn: () => fetchPackageLatest(component, baseVersion, source),
+    enabled,
+    staleTime: 2 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * 安装包来源（配置里的 `[[packages.sources]]`）：录入页据此按版本号拼 URL。
+ *
+ * 静态配置（启动期读入），不轮询；没配 token 时不请求，页面自动回落到手工粘贴。
+ */
+export function usePackageSources() {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["package-sources"],
+    queryFn: fetchPackageSources,
+    staleTime: 5 * 60_000,
+    enabled,
+  });
+}
+
 export function useReleases(component: string) {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken());

@@ -141,6 +141,57 @@
   font-size: 12px;
 }
 
+/* 自动探测最新版本的状态行：一句话 + 重新检查 / 手动指定 / 粘贴地址。 */
+.latestStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.latestStatus > span {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.latestStatus button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 「将检查：<按配置拼出的地址>」——把探活目标亮出来，免得版本号拼错还以为是仓库没发。 */
+.resolveTarget {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.resolveTarget code {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* 「或直接粘贴地址 / 返回按版本号检查」：文字链接，不占一个按钮的位置。 */
+.resolveLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent-strong);
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.resolveLink:hover {
+  color: var(--text);
+}
+
 .variantRow {
   display: grid;
   grid-template-columns: minmax(140px, 0.7fr) minmax(260px, 1.5fr) minmax(220px, 1fr);

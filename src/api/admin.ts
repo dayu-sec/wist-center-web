@@ -1773,6 +1773,91 @@ function normalizeResolvedRelease(raw: any): ResolvedGitHubRelease {
   };
 }
 
+/** 一个安装包组件的来源位置（`GET /api/v1/admin/package-sources`，配置里的 `[[packages.sources]]`）。 */
+export interface PackageSourceView {
+  component: string;
+  /** `owner/repo`；未配置为 null。 */
+  githubRepo: string | null;
+  cosBucket: string | null;
+  cosPrefix: string | null;
+  cosRegion: string | null;
+}
+
+/** 自动探测到的最新版本（`GET /api/v1/admin/package-sources/latest`）。 */
+export interface PackageLatestView {
+  component: string;
+  source: "github" | "cos";
+  /** 探测的起点（已录入的最近版本 / 手工传入），没有记录时为 null。 */
+  baseVersion: string | null;
+  version: string;
+  /** 该版本是否已经录入过（按版本号忽略 v 前缀比较）。 */
+  imported: boolean;
+  /** 已是最新（没有任何更新的版本）。 */
+  upToDate: boolean;
+  /** 新版本的制品；`up_to_date` / 已录入时可能为空。 */
+  assets: ResolvedGitHubAsset[];
+}
+
+/**
+ * 自动探测某组件的最新版本：GitHub 列 releases；只配了 COS 时从 `baseVersion` 往后探测。
+ *
+ * 返回 `up_to_date` 时 `assets` 为空；新版本则直接带齐解析好的制品，页面可一键填表。
+ */
+export async function fetchPackageLatest(
+  component: string,
+  baseVersion?: string,
+  source?: "github" | "cos",
+): Promise<PackageLatestView> {
+  const params = new URLSearchParams({ component });
+  const base = baseVersion?.trim();
+  if (base) params.set("base_version", base);
+  if (source) params.set("source", source);
+  const raw = await requestJson<any>(
+    `/api/v1/admin/package-sources/latest?${params.toString()}`,
+  );
+  const assets = Array.isArray(raw?.assets) ? raw.assets : [];
+  return {
+    component: typeof raw?.component === "string" ? raw.component : component,
+    source: raw?.source === "cos" ? "cos" : "github",
+    baseVersion: typeof raw?.base_version === "string" ? raw.base_version : null,
+    version: String(raw?.version ?? ""),
+    imported: Boolean(raw?.imported),
+    upToDate: Boolean(raw?.up_to_date),
+    assets: assets.map((asset: any) => ({
+      name: String(asset?.name ?? ""),
+      artifactUrl: String(asset?.artifact_url ?? asset?.artifactUrl ?? ""),
+      sha256: typeof asset?.sha256 === "string" ? asset.sha256 : null,
+      platform: typeof asset?.platform === "string" ? asset.platform : null,
+    })),
+  };
+}
+
+/**
+ * 安装包来源：录入页据此把操作者填的**版本号**拼成 GitHub Release 地址 / COS 路径。
+ *
+ * 只含位置、不含凭据；配置里没写时返回空数组（页面回落到手工粘贴地址）。
+ * 配置是启动期读的，不会变，所以调用方不需要轮询。
+ */
+export async function fetchPackageSources(): Promise<PackageSourceView[]> {
+  const raw = await requestJson<{ sources?: Array<Record<string, unknown>> }>(
+    "/api/v1/admin/package-sources",
+  );
+  const sources = Array.isArray(raw?.sources) ? raw.sources : [];
+  return sources
+    .map((source) => ({
+      component: String(source?.component ?? ""),
+      githubRepo:
+        typeof source?.github_repo === "string" ? source.github_repo : null,
+      cosBucket:
+        typeof source?.cos_bucket === "string" ? source.cos_bucket : null,
+      cosPrefix:
+        typeof source?.cos_prefix === "string" ? source.cos_prefix : null,
+      cosRegion:
+        typeof source?.cos_region === "string" ? source.cos_region : null,
+    }))
+    .filter((source) => source.component);
+}
+
 /**
  * 解析 GitHub Release 页面地址：拉出 tag（版本）与各平台制品地址（含 sha256），供录入页一键填充。
  *
@@ -1789,7 +1874,7 @@ export async function resolveGitHubRelease(
 }
 
 /**
- * 解析 COS 路径（桶/组件/版本，如 `wist-1347593047/wist-gwlinkd/v0.9.3-alpha`）：中心列出该前缀下的
+ * 解析 COS 路径（桶/组件/版本，如 `github-1347593047/wist-gwlinkd/v0.9.3-alpha`）：中心列出该前缀下的
  * 制品、逐个读回 sha256 元数据，供录入页一键填充（与 GitHub 解析**同形**）。
  *
  * **刻意不回落示例**：这是解析请求，失败要冒出来。

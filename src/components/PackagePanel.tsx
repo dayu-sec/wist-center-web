@@ -1,5 +1,6 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
+  ApiError,
   versionFromArtifactUrl,
   type ReleasePackage,
   type ResolvedGitHubRelease,
@@ -12,6 +13,8 @@ import {
   validateSingleArtifact,
 } from "../packageForm";
 import {
+  usePackageLatest,
+  usePackageSources,
   usePublishRelease,
   usePublishReleaseBatch,
   useResolveCosPath,
@@ -31,6 +34,7 @@ import {
   releaseStatusLabel,
   releaseStatusTone,
 } from "./ui";
+import { composePackageSourceUrl } from "./packageSourceUrl";
 import styles from "./PackagePanel.module.css";
 
 /** 多平台组件的一个平台槽位（`id` 为完整 target-triple，与后端解析出的一致）。 */
@@ -60,13 +64,19 @@ export function PackagePanel({ target }: { target: PackageTarget }) {
   const { data: releasesData } = useReleases(target.component);
   const releases = releasesData?.data ?? [];
   const platforms = target.platforms ?? [];
+  // 录入页的版本输入默认填「该组件最近录入的版本」：操作者只需把它往上改一格。
+  const latestVersion = releases[0]?.version;
 
   return (
     <SectionCard title={`提交 ${target.name} 新版本`} subtitle={target.subtitle}>
       {platforms.length > 0 ? (
-        <VariantsForm target={target} platforms={platforms} />
+        <VariantsForm
+          target={target}
+          platforms={platforms}
+          latestVersion={latestVersion}
+        />
       ) : (
-        <SingleArtifactForm target={target} />
+        <SingleArtifactForm target={target} latestVersion={latestVersion} />
       )}
       <HistorySection target={target} releases={releases} />
     </SectionCard>
@@ -74,7 +84,13 @@ export function PackagePanel({ target }: { target: PackageTarget }) {
 }
 
 /** 单制品组件的录入表单（一次一个包）。 */
-function SingleArtifactForm({ target }: { target: PackageTarget }) {
+function SingleArtifactForm({
+  target,
+  latestVersion,
+}: {
+  target: PackageTarget;
+  latestVersion?: string;
+}) {
   const mutation = usePublishRelease(target.component);
   // 受控，用于实时预览「会记哪个版本」（真值以提交回执为准）。
   const [artifactUrl, setArtifactUrl] = useState("");
@@ -158,7 +174,11 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
     <>
       <form ref={formRef} className={styles.form} onSubmit={handleSubmit}>
         <div className={styles.resolveBlock}>
-          <ResolveSourceField onResolved={handleResolved} />
+          <ResolveSourceField
+            component={target.component}
+            latestVersion={latestVersion}
+            onResolved={handleResolved}
+          />
         </div>
         <FormField
           label="产物地址（artifact_url）"
@@ -217,32 +237,124 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
 type ResolveSource = "github" | "cos";
 
 /**
- * 两个录入表单共用的「一键解析」输入区：GitHub Release / COS 路径两个 tab。
+ * 两个录入表单共用的「自动探测最新版本」输入区。
  *
- * 解析接口**同形**，只有「结果怎么填」随表单不同 —— 那部分由 `onResolved` 处理，
- * 返回要显示在输入区下方的说明（`null` = 不显示）。抽成一处，避免两个表单的 tab、
- * 输入框与错误提示各写一遍后漂移。
+ * 配置了 `[[packages.sources]]` 后，页面**不再要求每次填版本号**：
+ * 挂载时用「最近录入的版本」作基准，自动探测最新（GitHub 列 releases；只有 COS 时从基准往后试），
+ * 探到新版本就直接填表；第一次没有基准时由 GitHub 给出最新，COS-only 环境才退回手填版本号。
+ *
+ * 仍保留两种手动兜底：指定版本号 / 直接粘贴完整地址（配置里没有的组件自动走后者）。
  */
 function ResolveSourceField({
+  component,
+  latestVersion,
   onResolved,
 }: {
+  component: string;
+  latestVersion?: string;
   onResolved: (result: ResolvedGitHubRelease) => string | null;
 }) {
   const githubResolve = useResolveGitHubRelease();
   const cosResolve = useResolveCosPath();
+  const sources = usePackageSources();
+  const configured = (sources.data ?? []).find(
+    (item) => item.component === component,
+  );
+  const githubRepo = configured?.githubRepo ?? null;
+  const githubConfigured = Boolean(githubRepo);
+  const cosConfigured = Boolean(configured?.cosBucket && configured?.cosPrefix);
+
   const [source, setSource] = useState<ResolveSource>("github");
+  // 配置是异步到的：只配了 COS 的组件把默认来源切到 COS。
+  useEffect(() => {
+    setSource((current) => {
+      if (current === "github" && !githubConfigured && cosConfigured) return "cos";
+      if (current === "cos" && !cosConfigured && githubConfigured) return "github";
+      return current;
+    });
+  }, [githubConfigured, cosConfigured]);
+
+  const sourceConfigured =
+    source === "github" ? githubConfigured : cosConfigured;
+  const latest = usePackageLatest(
+    sourceConfigured ? component : "",
+    latestVersion,
+    source,
+  );
+
+  const [version, setVersion] = useState(latestVersion ?? "");
+  // 发布记录比表单晚到时补默认值；操作者已经改过就不覆盖。
+  useEffect(() => {
+    setVersion((current) => (current ? current : (latestVersion ?? "")));
+  }, [latestVersion]);
+
+  const [manual, setManual] = useState(false);
+  const [manualVersion, setManualVersion] = useState(false);
   const [sourceInput, setSourceInput] = useState("");
   const [resolveNote, setResolveNote] = useState<string | null>(null);
+  const [autoFilled, setAutoFilled] = useState<string | null>(null);
+  // 操作者一旦手动改过版本号/地址，后续自动探测就不许再覆盖表单。
+  const [userTouched, setUserTouched] = useState(false);
 
   const resolve = source === "github" ? githubResolve : cosResolve;
+  const composed = composePackageSourceUrl(configured, source, version);
+  const useManual = manual || !sourceConfigured;
+
+  // 切来源时清掉「已自动填充」的标记（新来源的数据到了可以重新填），
+  // 但**保留**填充说明：下方表单里可能仍是上一个来源填好的值，别让人以为它凭空来的。
+  useEffect(() => {
+    setAutoFilled(null);
+  }, [source]);
+
+  // 探到新版本就自动填表（同一版本只填一次，避免覆盖操作者之后的修改）。
+  const onResolvedRef = useRef(onResolved);
+  onResolvedRef.current = onResolved;
+  useEffect(() => {
+    const data = latest.data;
+    if (userTouched) return;
+    if (!data || data.upToDate || data.imported || !data.version) return;
+    if (data.version === autoFilled) return;
+    setAutoFilled(data.version);
+    setResolveNote(
+      onResolvedRef.current({ version: data.version, assets: data.assets }),
+    );
+  }, [latest.data, autoFilled, userTouched]);
 
   function handleResolve() {
-    const value = sourceInput.trim();
+    const value = (useManual ? sourceInput : composed).trim();
     if (!value) return;
     resolve.mutate(value, {
-      onSuccess: (result) => setResolveNote(onResolved(result)),
+      onSuccess: (result) => {
+        setUserTouched(true);
+        setResolveNote(onResolved(result));
+      },
     });
   }
+
+  // 只取服务端的 `detail`（如 "the recorded version was not found …"），不要把整条 URL 甩给用户。
+  const latestError = latest.error
+    ? latest.error instanceof ApiError && latest.error.detail
+      ? latest.error.detail
+      : String(latest.error)
+    : null;
+  const showVersionInput =
+    manualVersion ||
+    (!latest.isLoading && !latest.data && Boolean(latestError));
+  const latestStatus = latest.isLoading
+    ? source === "cos"
+      ? "正在检查最新版本…（COS 逐个版本探测，通常十几秒）"
+      : "正在检查最新版本…"
+    : latestError
+      ? `自动检查失败：${latestError}`
+      : latest.data
+        ? latest.data.upToDate || latest.data.imported
+          ? latest.data.upToDate
+            ? latest.data.source === "cos"
+              ? `COS 上未探测到新版本（基准 ${latest.data.version}）`
+              : `已是最新 ${latest.data.version}（已录入）`
+            : `最新版本 ${latest.data.version} 已录入`
+          : `发现新版本 ${latest.data.version}（${latest.data.source === "github" ? "GitHub" : "COS"}），已自动填入下方表单。`
+        : "";
 
   return (
     <>
@@ -260,49 +372,143 @@ function ResolveSourceField({
             }
             onClick={() => {
               setSource(value);
-              setResolveNote(null);
+              setManualVersion(false);
             }}
           >
             {value === "github" ? "GitHub Release" : "COS 路径"}
           </button>
         ))}
       </div>
-      <div className={styles.resolveField}>
-        <span className={styles.resolveLabel}>
-          {source === "github"
-            ? "GitHub Release 地址（可选，一键填充）"
-            : "COS 路径（可选，一键填充）"}
-        </span>
-        <div className={styles.resolveControls}>
-          <TextInput
-            value={sourceInput}
-            onChange={(event) => {
-              setSourceInput(event.target.value);
-              if (resolveNote) setResolveNote(null);
-            }}
-            onKeyDown={(event) => {
-              // 回车是「解析」，别把外面的发布表单提交掉。
-              if (event.key === "Enter") {
-                event.preventDefault();
-                handleResolve();
+
+      {!useManual ? (
+        <>
+          <div className={styles.latestStatus}>
+            <span>{latestStatus}</span>
+            <button
+              type="button"
+              className={styles.resolveLink}
+              onClick={() => {
+                // 显式点「重新检查」= 允许本次探测结果覆盖表单，给手动改过之后一个回退口。
+                setUserTouched(false);
+                setAutoFilled(null);
+                latest.refetch();
+              }}
+              disabled={latest.isFetching}
+            >
+              {latest.isFetching ? "检查中…" : "重新检查"}
+            </button>
+            {!showVersionInput ? (
+              <button
+                type="button"
+                className={styles.resolveLink}
+                onClick={() => {
+                  setUserTouched(true);
+                  setManualVersion(true);
+                }}
+              >
+                手动指定版本
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={styles.resolveLink}
+              onClick={() => {
+                setUserTouched(true);
+                setManual(true);
+              }}
+            >
+              或直接粘贴地址
+            </button>
+          </div>
+
+          {showVersionInput ? (
+            <div className={styles.resolveField}>
+              <span className={styles.resolveLabel}>
+                {source === "github"
+                  ? "版本号（按配置的 GitHub 仓库拼 release 地址）"
+                  : "版本号（按配置的 COS 前缀拼路径）"}
+              </span>
+              <div className={styles.resolveControls}>
+                <TextInput
+                  value={version}
+                  onChange={(event) => {
+                    setUserTouched(true);
+                    setVersion(event.target.value);
+                    if (resolveNote) setResolveNote(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleResolve();
+                    }
+                  }}
+                  placeholder="如 v0.4.0-alpha"
+                />
+                <button
+                  type="button"
+                  className={styles.resolveButton}
+                  onClick={handleResolve}
+                  disabled={resolve.isPending || !composed}
+                >
+                  {resolve.isPending ? "检查中…" : "检查 URL"}
+                </button>
+              </div>
+              <p className={styles.resolveTarget}>
+                将检查 <code>{composed || "（填版本号后按配置拼出地址）"}</code>
+              </p>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className={styles.resolveField}>
+          <span className={styles.resolveLabel}>
+            {source === "github"
+              ? "GitHub Release 地址（可选，一键填充）"
+              : "COS 路径（可选，一键填充）"}
+          </span>
+          <div className={styles.resolveControls}>
+            <TextInput
+              value={sourceInput}
+              onChange={(event) => {
+                setUserTouched(true);
+                setSourceInput(event.target.value);
+                if (resolveNote) setResolveNote(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleResolve();
+                }
+              }}
+              placeholder={
+                source === "github"
+                  ? "https://github.com/<owner>/<repo>/releases/tag/<tag>"
+                  : "桶/组件/版本，如 github-1347593047/wist-gwlinkd/v0.9.3-alpha"
               }
-            }}
-            placeholder={
-              source === "github"
-                ? "https://github.com/<owner>/<repo>/releases/tag/<tag>"
-                : "桶/组件/版本，如 wist-1347593047/wist-gwlinkd/v0.9.3-alpha"
-            }
-          />
-          <button
-            type="button"
-            className={styles.resolveButton}
-            onClick={handleResolve}
-            disabled={resolve.isPending || !sourceInput.trim()}
-          >
-            {resolve.isPending ? "解析中…" : "解析并填充"}
-          </button>
+            />
+            <button
+              type="button"
+              className={styles.resolveButton}
+              onClick={handleResolve}
+              disabled={resolve.isPending || !sourceInput.trim()}
+            >
+              {resolve.isPending ? "解析中…" : "解析并填充"}
+            </button>
+          </div>
+          {sourceConfigured ? (
+            <p className={styles.resolveTarget}>
+              <button
+                type="button"
+                className={styles.resolveLink}
+                onClick={() => setManual(false)}
+              >
+                返回自动检查
+              </button>
+            </p>
+          ) : null}
         </div>
-      </div>
+      )}
+
       {resolve.error ? (
         <ErrorBanner>解析失败：{String(resolve.error)}</ErrorBanner>
       ) : null}
@@ -318,9 +524,11 @@ function ResolveSourceField({
 function VariantsForm({
   target,
   platforms,
+  latestVersion,
 }: {
   target: PackageTarget;
   platforms: PlatformSlot[];
+  latestVersion?: string;
 }) {
   const mutation = usePublishReleaseBatch(target.component);
   const blankRow = () => ({ artifactUrl: "", expectedSha256: "" });
@@ -424,7 +632,11 @@ function VariantsForm({
           <strong>macOS-ARM / Linux-x86_64-musl / Linux-ARM64-musl</strong>{" "}
           三个制品（同一版本）。全部校验通过才会落库。
         </p>
-        <ResolveSourceField onResolved={handleResolved} />
+        <ResolveSourceField
+          component={target.component}
+          latestVersion={latestVersion}
+          onResolved={handleResolved}
+        />
         {platforms.map((slot, index) => {
           const row = rows[index];
           const derivedVersion = versionFromArtifactUrl(row.artifactUrl);

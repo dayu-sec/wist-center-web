@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { useAllReleases, useSetReleaseStatus } from "../hooks";
 import type { PackageTarget } from "./PackagePanel";
 import {
@@ -30,11 +32,16 @@ export function ManagedReleaseList({
   const setStatus = useSetReleaseStatus();
 
   const activeCount = data.filter((record) => record.status !== "expired").length;
+  const expiredCount = data.length - activeCount;
+  const [tab, setTab] = useState<"active" | "expired">("active");
+  const visible = data.filter((record) =>
+    tab === "expired" ? record.status === "expired" : record.status !== "expired",
+  );
 
   return (
     <SectionCard
       title="已托管包"
-      subtitle={`共 ${data.length} 个包，在用 ${activeCount} 个。`}
+      subtitle={`共 ${data.length} 个包，在用 ${activeCount} 个，已过期 ${expiredCount} 个。`}
     >
       {isLoading && data.length === 0 ? (
         <LoadingDots />
@@ -43,7 +50,54 @@ export function ManagedReleaseList({
           还没有录入任何安装包。去「安装包录入」录入第一个。
         </div>
       ) : (
-        <div className={styles.list}>
+        <>
+          <div className={styles.tabs} role="tablist" aria-label="托管状态">
+            <button
+              type="button"
+              role="tab"
+              id="managed-active-tab"
+              aria-selected={tab === "active"}
+              aria-controls="managed-package-panel"
+              className={
+                tab === "active"
+                  ? `${styles.tab} ${styles.tabActive}`
+                  : styles.tab
+              }
+              onClick={() => setTab("active")}
+            >
+              在用
+              <span className={styles.tabCount}>{activeCount}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="managed-expired-tab"
+              aria-selected={tab === "expired"}
+              aria-controls="managed-package-panel"
+              className={
+                tab === "expired"
+                  ? `${styles.tab} ${styles.tabActive}`
+                  : styles.tab
+              }
+              onClick={() => setTab("expired")}
+            >
+              已过期
+              <span className={styles.tabCount}>{expiredCount}</span>
+            </button>
+          </div>
+          <div
+            id="managed-package-panel"
+            role="tabpanel"
+            aria-labelledby={`managed-${tab}-tab`}
+          >
+            {visible.length === 0 ? (
+              <div className={styles.empty}>
+                {tab === "expired"
+                  ? "没有已过期的包。"
+                  : "在用包都在这儿；标记过期的版本已移到「已过期」。"}
+              </div>
+            ) : (
+              <div className={styles.list}>
           <div className={styles.headerRow} aria-hidden="true">
             <span>组件</span>
             <span>版本</span>
@@ -52,7 +106,7 @@ export function ManagedReleaseList({
             <span>录入时间</span>
             <span>操作</span>
           </div>
-          {data.map((record, index) => {
+          {visible.map((record, index) => {
             const expired = record.status === "expired";
             const pending =
               setStatus.isPending &&
@@ -113,7 +167,10 @@ export function ManagedReleaseList({
               </div>
             );
           })}
-        </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
       {setStatus.error ? (
         <ErrorBanner>改状态失败：{String(setStatus.error)}</ErrorBanner>
