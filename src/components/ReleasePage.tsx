@@ -3,11 +3,12 @@ import { useGatewayAgentsForAll, useGatewayStatusView } from "../hooks";
 import { PageShell } from "./ui";
 import { UpgradePlanCreatePanel } from "./UpgradePlanCreatePanel";
 import { AgentPackagePushPanel } from "./AgentPackagePushPanel";
+import { KnowledgePackagePushPanel } from "./KnowledgePackagePushPanel";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
 import { GatewayVersionText } from "./GatewayVersionText";
 import styles from "./ReleaseWorkspace.module.css";
 
-type ReleaseFlow = "upgrade" | "agent-package";
+type ReleaseFlow = "upgrade" | "agent-package" | "knowledge";
 
 const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
   {
@@ -16,6 +17,7 @@ const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
     tagline: "stack / gops / gx / gwlinkd",
   },
   { key: "agent-package", name: "② Agent 包下发", tagline: "推到网关包管理" },
+  { key: "knowledge", name: "③ 知识库下发", tagline: "推到网关知识库管理" },
 ];
 
 /**
@@ -37,14 +39,15 @@ export function ReleasePage() {
   return (
     <PageShell
       title="发布计划"
-      summary="把中心托管的安装包装出去：① 宿主组件推下去升级安装；② Agent 包推到网关的包管理（由网关决定升级）。"
+      summary="把中心托管的包装出去：① 宿主组件推下去升级安装；② Agent 包推到网关的包管理；③ 知识库包推到网关知识库（录入 / 可激活）。"
     >
       <section className={styles.workspace}>
         <header className={styles.workspaceHeader}>
           <div>
             <h2 className={styles.workspaceTitle}>发布方式</h2>
             <p className={styles.workspaceSubtitle}>
-              区别在「谁决定升级」：① 由中心直接推下去安装；② 只把包交给网关，升不升由网关决定。
+              区别在「谁决定升级 / 生效」：① 由中心直接推下去安装；② 只把包交给网关，升不升由网关决定；
+              ③ 只把知识库内容交给网关，是否激活由计划里的开关决定。
             </p>
           </div>
         </header>
@@ -77,8 +80,10 @@ export function ReleasePage() {
         >
           {activeFlow === "upgrade" ? (
             <UpgradePlanCreatePanel />
-          ) : (
+          ) : activeFlow === "agent-package" ? (
             <AgentPackagePushPanel />
+          ) : (
+            <KnowledgePackagePushPanel />
           )}
         </div>
       </section>

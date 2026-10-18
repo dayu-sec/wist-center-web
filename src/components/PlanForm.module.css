@@ -167,6 +167,22 @@
   line-height: 1.5;
 }
 
+/* 「录入后立即激活」开关：整行可点（文字也是 label 的一部分）。 */
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkboxRow input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent, #3b82f6);
+}
+
 .formError {
   margin-top: 10px;
   padding: 10px 12px;

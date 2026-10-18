@@ -18,6 +18,9 @@ export const UPGRADE_COMPONENTS = [
 /** ②「Agent 包下发」只发这一个组件。 */
 export const AGENT_PACKAGE_COMPONENTS = ["wist-agentd"] as const;
 
+/** 「知识库包下发」只发这一个组件（知识库是内容包，单制品、无平台）。 */
+export const KNOWLEDGE_PACKAGE_COMPONENTS = ["wist-knowledge"] as const;
+
 /**
  * 网关详情页「手动升级」可选的组件。
  *

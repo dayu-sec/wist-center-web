@@ -1,5 +1,6 @@
 import {
   AGENT_PACKAGE_COMPONENTS,
+  KNOWLEDGE_PACKAGE_COMPONENTS,
   MANUAL_GATEWAY_UPGRADE_COMPONENTS,
   UPGRADE_COMPONENTS,
   manualUpgradeComponentLabel,
@@ -55,6 +56,23 @@ for (const component of UPGRADE_COMPONENTS) {
 for (const component of AGENT_PACKAGE_COMPONENTS) {
   assert(managed.has(component), `包管理缺少 ② 组件 ${component} 的托管目标`);
 }
+assert(
+  KNOWLEDGE_PACKAGE_COMPONENTS.length === 1 &&
+    KNOWLEDGE_PACKAGE_COMPONENTS[0] === "wist-knowledge",
+  `③ 只发 wist-knowledge：${KNOWLEDGE_PACKAGE_COMPONENTS.join(",")}`,
+);
+for (const component of KNOWLEDGE_PACKAGE_COMPONENTS) {
+  assert(managed.has(component), `包管理缺少 ③ 组件 ${component} 的托管目标`);
+}
+// 知识库是单制品（包名无 target-triple），不应带平台槽位。
+const knowledge = RELEASE_TARGETS.find(
+  (target) => target.component === "wist-knowledge",
+);
+assert(knowledge !== undefined, "包管理缺少 wist-knowledge 目标");
+assert(
+  knowledge?.platforms === undefined,
+  "wist-knowledge 是单制品，不应带 platforms",
+);
 
 // gwlinkd 是多平台组件（宿主侧按平台取件）：发布页一次必须录满三平台。
 const gwlinkd = RELEASE_TARGETS.find(

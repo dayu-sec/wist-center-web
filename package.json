@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:agent-package-push": "tsx tests/agent-package-push-contract.test.ts",
+    "test:knowledge-package-push": "tsx tests/knowledge-package-push-contract.test.ts",
     "test:artifact-name": "tsx tests/artifact-name.test.ts",
     "test:package-form": "tsx tests/package-form.test.ts",
     "test:gateway-targets": "tsx tests/gateway-upgrade-targets.test.ts",

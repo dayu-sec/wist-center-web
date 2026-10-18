@@ -86,4 +86,13 @@ export const RELEASE_TARGETS: PackageTarget[] = [
       "https://artifacts.example.com/wist-gwlinkd/v0.1.0-x86_64-unknown-linux-musl.tar.gz",
     platforms: THREE_PLATFORMS,
   },
+  {
+    component: "wist-knowledge",
+    name: "知识库",
+    tagline: "采集内容包",
+    subtitle:
+      "知识库内容包（采集目录 / 包 / 模板 / 用途规则 / 发现策略）。单制品、无平台：一次录入一个包；推送时可选是否立即激活。",
+    artifactPlaceholder:
+      "https://artifacts.example.com/wist-knowledge/0.3.0/wist-knowledge-0.3.0.tar.gz",
+  },
 ];

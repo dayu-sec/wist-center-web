@@ -22,3 +22,17 @@ export function jsonUpgradeSpec(targets: UpgradeTarget[]): string {
     })),
   });
 }
+
+/**
+ * 「知识库包下发」的 `spec`：在升级同一形状上多一个 `activate`。
+ *
+ * 中心与 gwlinkd 共用 `{"targets":[…],"activate":bool}`；`activate` 缺省不写（网关按 false 处理）。
+ * 知识库是**内容**：录入 ≠ 生效，所以这个开关必须显式表达。
+ */
+export function jsonKnowledgePushSpec(
+  targets: UpgradeTarget[],
+  activate: boolean,
+): string {
+  const base = JSON.parse(jsonUpgradeSpec(targets)) as Record<string, unknown>;
+  return JSON.stringify({ ...base, ...(activate ? { activate: true } : {}) });
+}

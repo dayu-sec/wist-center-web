@@ -17,8 +17,12 @@ import {
 } from "@dayu-sec/wist-web-core/auth";
 
 // 升级计划 spec 的口径抽到纯模块：页面 / 手动升级 / 契约测试共用一份。
-import { jsonUpgradeSpec, type UpgradeTarget } from "../upgradeSpec";
-export { jsonUpgradeSpec, type UpgradeTarget };
+import {
+  jsonKnowledgePushSpec,
+  jsonUpgradeSpec,
+  type UpgradeTarget,
+} from "../upgradeSpec";
+export { jsonKnowledgePushSpec, jsonUpgradeSpec, type UpgradeTarget };
 
 export type GatewayStatus = "online" | "offline" | (string & {});
 export type GatewayHealth = "healthy" | "degraded" | "unhealthy" | "unknown";
@@ -274,6 +278,15 @@ export interface RolloutPlanDetail {
  * `edge/agent-package-push-to-gateways.md`。
  */
 export const AGENT_PACKAGE_PUSH_ACTION = "push-agent-package";
+
+/**
+ * 「知识库包下发」的计划动作值。
+ *
+ * 与 Rust 侧 `wist_control::ACTION_PUSH_KNOWLEDGE_PACKAGE` / `wist-gwlinkd` **同值**。
+ * 知识库是内容：gwlinkd 取包 → 落到投放目录（含 `.sig`）→ 环回交付网关知识库管理；
+ * `activate` 决定录入后是否立即切生效指针。见设计 `edge/knowledge-package-push-to-gateways.md`。
+ */
+export const KNOWLEDGE_PACKAGE_PUSH_ACTION = "push-knowledge-package";
 
 export interface GlobalPolicyDispatch {
   dispatchId: string;

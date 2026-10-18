@@ -32,8 +32,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Contract tests
+      - name: Contract tests (agent package push)
         run: npm run test:agent-package-push
+
+      # 知识库包下发：动作字面量、spec（targets + activate）、创建/读回、写操作不回落示例。
+      - name: Contract tests (knowledge package push)
+        run: npm run test:knowledge-package-push
 
       # 发布页的组件契约：① 含 gwlinkd、② 只发 agentd、① 组件都能在包管理里选到版本。
       - name: Test (release components)
