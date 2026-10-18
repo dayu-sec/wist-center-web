@@ -103,6 +103,8 @@ export function GatewayDetailPage() {
                   <Metric label="版本">
                     <GatewayVersionText value={gateway.version} />
                   </Metric>
+                  <Metric label="gops">{gateway.gopsVersion ?? "—"}</Metric>
+                  <Metric label="gx">{gateway.gxVersion ?? "—"}</Metric>
                   <Metric label="Agent 在线 / 离线" primary>
                     {gateway.onlineAgents ?? "—"} / {gateway.offlineAgents ?? "—"}
                     <span className={styles.metricSub}>
