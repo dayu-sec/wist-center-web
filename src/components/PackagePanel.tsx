@@ -1,6 +1,12 @@
 import { useRef, useState, type FormEvent } from "react";
-import { versionFromArtifactUrl, type ReleasePackage } from "../api";
 import {
+  versionFromArtifactUrl,
+  type ReleasePackage,
+  type ResolvedGitHubRelease,
+} from "../api";
+import {
+  isSidecarArtifact,
+  pickSingleAsset,
   resolvedAssetsComponentError,
   validateArtifactRow,
   validateSingleArtifact,
@@ -78,6 +84,37 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
   const derivedVersion = versionFromArtifactUrl(artifactUrl);
   const formRef = useRef<HTMLFormElement>(null);
 
+  /** 解析结果只取一个制品：先排掉边车 / 别的组件，再取第一个能用的。 */
+  function handleResolved(result: ResolvedGitHubRelease): string | null {
+    // 校验和 / 签名边车不是制品：既不该参与组件预检，也不该计入「共解析到 N 个」的提示。
+    const candidates = result.assets.filter(
+      (asset) => !isSidecarArtifact(asset.artifactUrl),
+    );
+    const wrongComponent = resolvedAssetsComponentError(
+      target.component,
+      candidates.map((asset) => asset.artifactUrl),
+    );
+    if (wrongComponent) return wrongComponent;
+
+    const asset = pickSingleAsset(target.component, candidates);
+    if (!asset) return `${result.version}：没有解析到可录入的制品。`;
+
+    setArtifactUrl(asset.artifactUrl);
+    setExpectedSha256(asset.sha256 ?? "");
+    setUrlError(null);
+    setShaError(null);
+
+    const multiple =
+      candidates.length > 1
+        ? `（共解析到 ${candidates.length} 个制品，已取第一个；如需其它请手动替换地址。）`
+        : "";
+    // COS 只存 MD5（ETag），sha256 走对象自定义元数据：读不回时留空，提示手填。
+    const shaHint = asset.sha256
+      ? ""
+      : " 缺 sha256（COS 元数据读不回），请用 `coscli stat` 读回手填。";
+    return `已按 ${result.version} 填充 ${asset.name}。${multiple}${shaHint}`;
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const artifact = artifactUrl.trim();
@@ -120,6 +157,9 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
   return (
     <>
       <form ref={formRef} className={styles.form} onSubmit={handleSubmit}>
+        <div className={styles.resolveBlock}>
+          <ResolveSourceField onResolved={handleResolved} />
+        </div>
         <FormField
           label="产物地址（artifact_url）"
           hint="版本号从包地址自动解析（文件名 / 包内目录名），不用手填。"
@@ -177,6 +217,101 @@ function SingleArtifactForm({ target }: { target: PackageTarget }) {
 type ResolveSource = "github" | "cos";
 
 /**
+ * 两个录入表单共用的「一键解析」输入区：GitHub Release / COS 路径两个 tab。
+ *
+ * 解析接口**同形**，只有「结果怎么填」随表单不同 —— 那部分由 `onResolved` 处理，
+ * 返回要显示在输入区下方的说明（`null` = 不显示）。抽成一处，避免两个表单的 tab、
+ * 输入框与错误提示各写一遍后漂移。
+ */
+function ResolveSourceField({
+  onResolved,
+}: {
+  onResolved: (result: ResolvedGitHubRelease) => string | null;
+}) {
+  const githubResolve = useResolveGitHubRelease();
+  const cosResolve = useResolveCosPath();
+  const [source, setSource] = useState<ResolveSource>("github");
+  const [sourceInput, setSourceInput] = useState("");
+  const [resolveNote, setResolveNote] = useState<string | null>(null);
+
+  const resolve = source === "github" ? githubResolve : cosResolve;
+
+  function handleResolve() {
+    const value = sourceInput.trim();
+    if (!value) return;
+    resolve.mutate(value, {
+      onSuccess: (result) => setResolveNote(onResolved(result)),
+    });
+  }
+
+  return (
+    <>
+      <div className={styles.sourceTabs} role="tablist" aria-label="解析来源">
+        {(["github", "cos"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={source === value}
+            className={
+              source === value
+                ? `${styles.sourceTab} ${styles.sourceTabActive}`
+                : styles.sourceTab
+            }
+            onClick={() => {
+              setSource(value);
+              setResolveNote(null);
+            }}
+          >
+            {value === "github" ? "GitHub Release" : "COS 路径"}
+          </button>
+        ))}
+      </div>
+      <div className={styles.resolveField}>
+        <span className={styles.resolveLabel}>
+          {source === "github"
+            ? "GitHub Release 地址（可选，一键填充）"
+            : "COS 路径（可选，一键填充）"}
+        </span>
+        <div className={styles.resolveControls}>
+          <TextInput
+            value={sourceInput}
+            onChange={(event) => {
+              setSourceInput(event.target.value);
+              if (resolveNote) setResolveNote(null);
+            }}
+            onKeyDown={(event) => {
+              // 回车是「解析」，别把外面的发布表单提交掉。
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleResolve();
+              }
+            }}
+            placeholder={
+              source === "github"
+                ? "https://github.com/<owner>/<repo>/releases/tag/<tag>"
+                : "桶/组件/版本，如 wist-1347593047/wist-gwlinkd/v0.9.3-alpha"
+            }
+          />
+          <button
+            type="button"
+            className={styles.resolveButton}
+            onClick={handleResolve}
+            disabled={resolve.isPending || !sourceInput.trim()}
+          >
+            {resolve.isPending ? "解析中…" : "解析并填充"}
+          </button>
+        </div>
+      </div>
+      {resolve.error ? (
+        <ErrorBanner>解析失败：{String(resolve.error)}</ErrorBanner>
+      ) : null}
+      {resolveNote ? <p className={styles.resolveNote}>{resolveNote}</p> : null}
+    </>
+  );
+}
+
+/**
  * 多平台组件的录入表单：按槽位各填一个制品，**一次提交三平台**（同一版本）。
  * 缺任何一个都会被中心整体拒绝（不落任何记录）。
  */
@@ -188,65 +323,52 @@ function VariantsForm({
   platforms: PlatformSlot[];
 }) {
   const mutation = usePublishReleaseBatch(target.component);
-  const githubResolve = useResolveGitHubRelease();
-  const cosResolve = useResolveCosPath();
   const blankRow = () => ({ artifactUrl: "", expectedSha256: "" });
   const [rows, setRows] = useState(platforms.map(blankRow));
   const [errors, setErrors] = useState<(string | null)[]>(
     platforms.map(() => null),
   );
-  // 解析来源分两个 tab（GitHub Release / COS 路径）；两者接口**同形**，只有入参与提示不同。
-  const [source, setSource] = useState<ResolveSource>("github");
-  const [sourceInput, setSourceInput] = useState("");
-  const [resolveNote, setResolveNote] = useState<string | null>(null);
 
-  const resolve = source === "github" ? githubResolve : cosResolve;
-
-  /** 解析来源（GitHub Release 地址 / COS 路径）→ 按平台槽位自动填充地址与 sha256。 */
-  function handleResolve() {
-    const value = sourceInput.trim();
-    if (!value) return;
-    resolve.mutate(value, {
-      onSuccess: (result) => {
-        const missing: string[] = [];
-        const nextRows = rows.map((row, index) => {
-          const slot = platforms[index];
-          const asset = result.assets.find(
-            (item) => item.platform === slot.id,
-          );
-          if (!asset) {
-            missing.push(slot.label);
-            return row;
-          }
-          return {
-            artifactUrl: asset.artifactUrl,
-            expectedSha256: asset.sha256 ?? "",
-          };
-        });
-        setRows(nextRows);
-        setErrors(platforms.map(() => null));
-        // 先按来源文件名看这批制品是不是别的组件 —— 当场说清，别等下载完批量提交才报。
-        const wrongComponent = resolvedAssetsComponentError(
-          target.component,
-          result.assets.map((asset) => asset.artifactUrl),
-        );
-        // COS 只存 MD5（ETag），sha256 走对象自定义元数据：读不回时留空，提示用 coscli stat 手填。
-        const shaMissing = nextRows.some(
-          (row) => row.artifactUrl && !row.expectedSha256,
-        );
-        setResolveNote(
-          wrongComponent ??
-            (missing.length === 0
-              ? `已按 ${result.version} 填充 ${platforms.length} 个平台。` +
-                (shaMissing
-                  ? " 有平台缺 sha256（COS 元数据读不回），请用 `coscli stat` 读回手填。"
-                  : "")
-              : `${result.version}：已填充 ${platforms.length - missing.length} 个平台，缺少 ${missing.join(
-                  " / ",
-                )}，请手动补址。`),
-        );
-      },
+  /** 解析结果按平台槽位自动填充地址与 sha256；返回给输入区的说明。 */
+  function handleResolved(result: ResolvedGitHubRelease): string | null {
+    const missing: string[] = [];
+    const nextRows = rows.map((row, index) => {
+      const slot = platforms[index];
+      const asset = result.assets.find((item) => item.platform === slot.id);
+      if (!asset) {
+        missing.push(slot.label);
+        return row;
+      }
+      return {
+        artifactUrl: asset.artifactUrl,
+        expectedSha256: asset.sha256 ?? "",
+      };
     });
+    setRows(nextRows);
+    setErrors(platforms.map(() => null));
+    // 先按来源文件名看这批制品是不是别的组件 —— 当场说清，别等下载完批量提交才报。
+    // 校验和 / 签名边车不是制品，也不参与组件预检。
+    const wrongComponent = resolvedAssetsComponentError(
+      target.component,
+      result.assets
+        .filter((asset) => !isSidecarArtifact(asset.artifactUrl))
+        .map((asset) => asset.artifactUrl),
+    );
+    // COS 只存 MD5（ETag），sha256 走对象自定义元数据：读不回时留空，提示用 coscli stat 手填。
+    const shaMissing = nextRows.some(
+      (row) => row.artifactUrl && !row.expectedSha256,
+    );
+    return (
+      wrongComponent ??
+      (missing.length === 0
+        ? `已按 ${result.version} 填充 ${platforms.length} 个平台。` +
+          (shaMissing
+            ? " 有平台缺 sha256（COS 元数据读不回），请用 `coscli stat` 读回手填。"
+            : "")
+        : `${result.version}：已填充 ${platforms.length - missing.length} 个平台，缺少 ${missing.join(
+            " / ",
+          )}，请手动补址。`)
+    );
   }
 
   function updateRow(
@@ -302,62 +424,7 @@ function VariantsForm({
           <strong>macOS-ARM / Linux-x86_64-musl / Linux-ARM64-musl</strong>{" "}
           三个制品（同一版本）。全部校验通过才会落库。
         </p>
-        <div className={styles.sourceTabs} role="tablist" aria-label="解析来源">
-          {(["github", "cos"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={source === value}
-              className={
-                source === value
-                  ? `${styles.sourceTab} ${styles.sourceTabActive}`
-                  : styles.sourceTab
-              }
-              onClick={() => {
-                setSource(value);
-                setResolveNote(null);
-              }}
-            >
-              {value === "github" ? "GitHub Release" : "COS 路径"}
-            </button>
-          ))}
-        </div>
-        <div className={styles.resolveField}>
-          <span className={styles.resolveLabel}>
-            {source === "github"
-              ? "GitHub Release 地址（可选，一键填充）"
-              : "COS 路径（可选，一键填充）"}
-          </span>
-          <div className={styles.resolveControls}>
-            <TextInput
-              value={sourceInput}
-              onChange={(event) => {
-                setSourceInput(event.target.value);
-                if (resolveNote) setResolveNote(null);
-              }}
-              placeholder={
-                source === "github"
-                  ? "https://github.com/<owner>/<repo>/releases/tag/<tag>"
-                  : "桶/组件/版本，如 wist-1347593047/wist-gwlinkd/v0.9.3-alpha"
-              }
-            />
-            <button
-              type="button"
-              className={styles.resolveButton}
-              onClick={handleResolve}
-              disabled={resolve.isPending || !sourceInput.trim()}
-            >
-              {resolve.isPending ? "解析中…" : "解析并填充"}
-            </button>
-          </div>
-        </div>
-        {resolve.error ? (
-          <ErrorBanner>解析失败：{String(resolve.error)}</ErrorBanner>
-        ) : null}
-        {resolveNote ? (
-          <p className={styles.resolveNote}>{resolveNote}</p>
-        ) : null}
+        <ResolveSourceField onResolved={handleResolved} />
         {platforms.map((slot, index) => {
           const row = rows[index];
           const derivedVersion = versionFromArtifactUrl(row.artifactUrl);

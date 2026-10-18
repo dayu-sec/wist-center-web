@@ -1,9 +1,11 @@
 import {
+  pickSingleAsset,
   resolvedAssetsComponentError,
   validateArtifactRow,
   validateSingleArtifact,
   type ArtifactRow,
 } from "../src/packageForm";
+import type { ResolvedGitHubAsset } from "../src/api";
 import { sha256Error } from "../src/sha256";
 
 // 集成测试：`PackagePanel` 两个表单（单制品 / 多平台）的**提交前校验流程**。
@@ -12,7 +14,8 @@ import { sha256Error } from "../src/sha256";
 // `artifact-name.test.ts`）。钉住三件事：
 //   1. 组件不符优先于摘要格式（组件都错了就不必再纠摘要）；
 //   2. 多平台逐行「空地址 → 组件不符 → 摘要格式」的先后；
-//   3. 一键解析填充后，整批制品里的「组件不符」能当场浮出来。
+//   3. 一键解析填充后，整批制品里的「组件不符」能当场浮出来；
+//   4. 单制品表单从一批解析结果里选件时，跳过别的组件、取第一个能用的。
 //
 // Usage: npm run test:package-form
 
@@ -127,6 +130,55 @@ const NAMELESS_URL =
     resolvedAssetsComponentError(AGENTD, []),
     null,
     "resolve: empty batch passes",
+  );
+}
+
+// ── 单制品表单：从一批解析结果里选件 ──
+{
+  const asset = (artifactUrl: string): ResolvedGitHubAsset => ({
+    name: artifactUrl.split("/").pop() ?? artifactUrl,
+    artifactUrl,
+    sha256: GOOD_SHA,
+    platform: null,
+  });
+  const STACK_URL =
+    "https://x.example/wist-gateway-stack-v0.1.40-alpha.tar.gz";
+
+  assertEqual(
+    pickSingleAsset("wist-gateway-stack", [asset(STACK_URL)])?.artifactUrl,
+    STACK_URL,
+    "single pick: matching single artifact",
+  );
+  // 同一 Release 常把校验和边车与制品并列：不能把 `.sha256` 填进产物地址。
+  assertEqual(
+    pickSingleAsset("wist-gateway-stack", [
+      asset(`${STACK_URL}.sha256`),
+      asset(STACK_URL),
+    ])?.artifactUrl,
+    STACK_URL,
+    "single pick: skips checksum sidecars",
+  );
+  // 同一批解析结果里混了别的组件：跳过它，取第一个能用的。
+  assertEqual(
+    pickSingleAsset(AGENTD, [asset(GWLINKD_URL), asset(AGENTD_URL)])?.artifactUrl,
+    AGENTD_URL,
+    "single pick: skips the wrong component",
+  );
+  // 读不出包名的制品一律放行（交给中心下载后定夺），按解析顺序取第一个。
+  assertEqual(
+    pickSingleAsset(AGENTD, [asset(NAMELESS_URL), asset(AGENTD_URL)])?.artifactUrl,
+    NAMELESS_URL,
+    "single pick: nameless source defers and wins by order",
+  );
+  assertEqual(
+    pickSingleAsset(AGENTD, [asset(GWLINKD_URL)]),
+    null,
+    "single pick: no compatible artifact",
+  );
+  assertEqual(
+    pickSingleAsset(AGENTD, []),
+    null,
+    "single pick: empty batch",
   );
 }
 

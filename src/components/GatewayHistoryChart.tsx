@@ -1,5 +1,5 @@
 import type { GatewayHistory, GatewayHistorySample } from "../api";
-import { formatBytes, formatDuration, formatPercent } from "./ui";
+import { formatBytes, formatPercent } from "./ui";
 import styles from "./GatewayHistoryChart.module.css";
 
 interface GatewayHistoryChartProps {
@@ -81,19 +81,11 @@ export function GatewayHistoryChart({
         samples={samples}
         valueOf={(sample) => sample.memoryBytes}
       />
-      {/* 富化趋势：只在样本里有这条序列时渲染，老数据/agent 紧凑图不显示空行。 */}
-      {hasData(samples, (sample) => sample.uptimeSeconds) ? (
-        <TrendRow
-          id="uptime"
-          label="运行时长"
-          color="var(--series-2)"
-          value={formatDuration(
-            latestValue(samples, (sample) => sample.uptimeSeconds),
-          )}
-          samples={samples}
-          valueOf={(sample) => sample.uptimeSeconds}
-        />
-      ) : null}
+      {/*
+        运行时长**不画趋势**：它是单调递增的直线，画出来只是占一行、读不出任何信息
+        （现场反馈「运行时间不需要时间线」）。当前值在上面的规格表里已经有「运行时长」一项，
+        这里不再重复。
+      */}
       {hasData(samples, (sample) => sample.onlineAgents) ? (
         <TrendRow
           id="agents"
@@ -151,7 +143,14 @@ export function GatewayHistoryChart({
         />
       ) : null}
       <div className={styles.availabilityRow}>
-        <span className={styles.rowLabel}>在线</span>
+        <span className={styles.rowLabel}>
+          <i
+            className={styles.rowDot}
+            style={{ background: "var(--ok)" }}
+            aria-hidden="true"
+          />
+          在线
+        </span>
         <div className={styles.availability} aria-label="最近 1 小时在线状态">
           {samples.map((sample) => (
             <span
@@ -173,9 +172,18 @@ export function GatewayHistoryChart({
             />
           ))}
         </div>
+        <span className={styles.rowValue}>{onlineSummary(samples)}</span>
       </div>
     </div>
   );
+}
+
+/** 在线时间轴的汇总（有数据的采样里「在线」占的比例）；无数据时给 —。 */
+function onlineSummary(samples: GatewayHistorySample[]): string {
+  const known = samples.filter((sample) => sample.online !== null);
+  if (known.length === 0) return "—";
+  const online = known.filter((sample) => (sample.online ?? 0) >= 0.5).length;
+  return `${Math.round((online / known.length) * 100)}%`;
 }
 
 /**
@@ -207,7 +215,10 @@ function TrendRow({
 
   return (
     <div className={styles.trendRow}>
-      <span className={styles.rowLabel}>{label}</span>
+      <span className={styles.rowLabel}>
+        <i className={styles.rowDot} style={{ background: color }} aria-hidden="true" />
+        {label}
+      </span>
       <svg
         className={styles.sparkline}
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
@@ -217,7 +228,7 @@ function TrendRow({
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.16" />
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>

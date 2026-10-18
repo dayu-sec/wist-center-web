@@ -1,3 +1,4 @@
+import type { ResolvedGitHubAsset } from "./api";
 import { componentMismatchError } from "./artifactName";
 import { sha256Error } from "./sha256";
 
@@ -38,6 +39,37 @@ export function validateArtifactRow(
   const mismatch = componentMismatchError(component, row.artifactUrl);
   if (mismatch) return mismatch;
   return sha256Error(row.expectedSha256.trim());
+}
+
+/**
+ * 同一 Release 常把校验和 / 签名边车与制品并列（`.sha256` / `.sig` …）：
+ * 它们不是可录入的制品，单制品选件时要跳过。
+ */
+export function isSidecarArtifact(artifactUrl: string): boolean {
+  const file = (artifactUrl.split(/[?#]/)[0].split("/").pop() ?? "").toLowerCase();
+  return [".sha256", ".sha512", ".sha1", ".md5", ".sig", ".asc"].some(
+    (suffix) => file.endsWith(suffix),
+  );
+}
+
+/**
+ * 单制品表单的「一键填充」选件规则：先排除边车文件（`.sha256` 等）与文件名明确属于别的
+ * 组件的制品，取第一个能用的；读不出包名的一律放行（解析器已按平台/命名筛过）。
+ *
+ * 返回 `null` = 这批制品里没有能填的（调用方应先看 `resolvedAssetsComponentError`，
+ * 把「这是别的组件」说清楚）。
+ */
+export function pickSingleAsset(
+  component: string,
+  assets: readonly ResolvedGitHubAsset[],
+): ResolvedGitHubAsset | null {
+  for (const asset of assets) {
+    if (isSidecarArtifact(asset.artifactUrl)) continue;
+    if (componentMismatchError(component, asset.artifactUrl) === null) {
+      return asset;
+    }
+  }
+  return null;
 }
 
 /**

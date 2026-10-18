@@ -79,12 +79,6 @@ export function GatewayStatusCard({
             <GatewayVersionText value={gateway.version} />
           </div>
           <div className={styles.item}>
-            <div className={styles.label}>域名</div>
-            <div title={gateway.publicBaseUrl ?? undefined}>
-              {gateway.publicBaseUrl ?? "—"}
-            </div>
-          </div>
-          <div className={styles.item}>
             <div className={styles.label}>最后上报</div>
             <div className={stale ? styles.staleValue : undefined}>
               <GatewayLastSeenAtText value={gateway.lastSeenAt} />
@@ -92,6 +86,13 @@ export function GatewayStatusCard({
             {stale ? (
               <div className={styles.staleHint}>长时间未上报</div>
             ) : null}
+          </div>
+          {/* 域名放最后：它要占一整行，放中间会把后面的「最后上报」挤到新一行，网格里出两个空洞。 */}
+          <div className={`${styles.item} ${styles.itemUrl}`}>
+            <div className={styles.label}>域名</div>
+            <div title={gateway.publicBaseUrl ?? undefined}>
+              {gateway.publicBaseUrl ?? "—"}
+            </div>
           </div>
         </div>
         <GatewayHistoryChart

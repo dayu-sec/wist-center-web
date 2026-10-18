@@ -58,31 +58,117 @@
   font-size: 13px;
 }
 
-.metrics {
+/* 一张「规格表」：三组共用同一套列模板 —— **首列是组名**，后面四列是指标。
+   之前组名单独占一行、指标另起网格，组名与指标各排各的，看起来「没对齐」
+   （现场反馈）。现在组名进第一列，三组的所有行都落在同样的列上。
+   资源那组 6 项自动折成两行（首列留空）。 */
+.metricGroups {
+  display: block;
+  padding: 14px 20px 16px;
+}
+
+/* 每组 = 「组名列 + 指标网格」两栏：组名独占第一列、指标网格是它自己的四列网格。
+   组名放在网格**里面**时，第二行会回填到第一列（资源那组的「存储」跑到组名下面），反而更乱。 */
+.metricGroup {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  padding: 4px 0;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 18px;
 }
 
+.metricGroup + .metricGroup {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 18px;
+  align-items: start;
+}
+
+.groupTitle {
+  margin: 0;
+  padding-top: 1px;
+  color: var(--text-4);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* 每一项：标签一行 + 值一行；**值那一行固定 22px 并垂直居中** —— 否则 19px 的主指标与
+   13.5px 的普通值、以及两个徽标会各占各的高度，同一行看起来参差不齐。 */
 .metric {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 7px;
+  display: grid;
+  grid-template-rows: auto 22px;
+  row-gap: 3px;
   min-width: 0;
-  padding: 16px 20px;
-  border-right: 1px solid var(--border);
 }
 
-.metric:last-child {
-  border-right: 0;
-}
-/* 行末（第 5 列）不画分隔线；最后一行不满时（末格落在中列）也不留悬空分隔线。 */
-.metric:nth-child(5n) {
-  border-right: 0;
+.metricLabel {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  /* 宁可换行也不要省略号：窄列时「数据面接收（累计）」会被截成「数据面接收（累…」。 */
+  line-height: 1.35;
 }
 
-/* 趋势图自成一块（整宽），不再被塞进 5 列指标网格里。 */
+@media (max-width: 1100px) {
+  .metricGroup {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.metricValue {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 主指标（在线率 / Agent 在线数）：升一档，让人一眼先看到它们。 */
+.metricValuePrimary {
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+/* 主值后面的补充说明（「共 2」这类）。 */
+.metricSub {
+  margin-left: 6px;
+  color: var(--text-4);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@media (max-width: 1080px) {
+  .metricGroups {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .metricGroup + .metricGroup {
+    padding-top: 16px;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}
+
 .chartBlock {
   padding: 4px 20px 20px;
   border-top: 1px solid var(--border);
@@ -126,6 +212,38 @@
 }
 
 /* 卡片里的一段说明（不是计数胶囊：`sectionMeta` 是给右上角计数用的）。 */
+/* 「已接入」提示：一行就够，带绿色对勾；不再是占半屏的卡片。 */
+.installedNote {
+  display: block;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 14px auto 0;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.installedIcon {
+  margin-right: 6px;
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.installedLink {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.installedLink:hover {
+  text-decoration: underline;
+}
+
 .cardNote {
   margin-top: 6px;
   color: var(--text-3);
@@ -147,43 +265,109 @@
   text-align: center;
 }
 
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* 生命周期 = **横排状态链**：每个状态一列，圆点落在一条横轨上，下面状态名、再下面到达时间。
+   从左到右就是时间顺序；末列是当前态。 */
+.chain {
+  position: relative;
+  display: grid;
+  /* --steps 由组件按状态数写进 style；每列等宽，圆点居中。 */
+  grid-template-columns: repeat(var(--steps, 4), minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  list-style: none;
+  overflow-x: auto;
 }
 
-.timelineItem {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
+/* 一条横轨：两端各缩进半个列宽，正好落在首/末两个圆点的圆心。 */
+.chain::before {
+  position: absolute;
+  top: 18px;
+  right: calc(100% / (2 * var(--steps, 4)));
+  left: calc(100% / (2 * var(--steps, 4)));
+  height: 1px;
+  background: var(--border);
+  content: "";
 }
 
-.timelineDot {
-  flex-shrink: 0;
-  width: 7px;
-  height: 7px;
-  margin-top: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.timelineBody {
+.chainStep {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
   min-width: 0;
+  padding: 14px 10px 12px;
+  text-align: center;
 }
 
-.timelineText {
-  color: var(--text);
-  font-size: 13.5px;
+/* 圆点在横轨上方一格：轨道在 22px，圆点圆心也在 22px。 */
+.chainDot {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--unknown);
+  box-shadow: 0 0 0 3px var(--unknown-soft);
+}
+
+/* 圆点按状态上色（已运行=绿、初始化中=蓝、失败=红），未进入过的状态是灰。 */
+.chainDot[data-tone="green"] {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+.chainDot[data-tone="blue"] {
+  background: var(--info);
+  box-shadow: 0 0 0 3px var(--info-soft);
+}
+.chainDot[data-tone="red"] {
+  background: var(--crit);
+  box-shadow: 0 0 0 3px var(--crit-soft);
+}
+
+.chainLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
   font-weight: 600;
+  line-height: 1.35;
 }
 
-.timelineTime {
-  margin-top: 2px;
+.chainStepCurrent .chainLabel {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* 「当前」胶囊贴着末列的状态名。 */
+.chainNow {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chainTime {
   color: var(--text-4);
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 窄屏：状态多、名字长时横向滚动，而不是把列压到看不清。 */
+@media (max-width: 760px) {
+  .chain {
+    grid-template-columns: repeat(var(--steps, 4), minmax(120px, 1fr));
+  }
 }
 
 .agentGrid {
