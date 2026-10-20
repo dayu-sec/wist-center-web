@@ -266,6 +266,8 @@ export interface RolloutPlanEntry {
   detail: string;
   /** 任务执行日志目录（网关本机路径）；仅在网关回报了任务日志时存在。 */
   logDir: string | null;
+  /** 任务执行日志摘要（失败回执才带；网关侧已脱敏，中心再截一次）。 */
+  logExcerpt: string | null;
   updatedAt: string;
 }
 
@@ -849,6 +851,7 @@ function normalizeRolloutEntry(payload: any): RolloutPlanEntry {
     status: requiredString(payload.status, "entry.status"),
     detail: optionalString(payload.detail) ?? "",
     logDir: optionalString(pick(payload, "log_dir", "logDir")),
+    logExcerpt: optionalString(pick(payload, "log_excerpt", "logExcerpt")),
     updatedAt: requiredString(
       pick(payload, "updated_at", "updatedAt"),
       "entry.updatedAt",
@@ -1965,6 +1968,7 @@ function exampleRolloutPlanDetail(planId: string): RolloutPlanDetail {
         status: "dispatched",
         detail: "",
         logDir: null,
+        logExcerpt: null,
         updatedAt: new Date().toISOString(),
       },
       {
@@ -1973,6 +1977,7 @@ function exampleRolloutPlanDetail(planId: string): RolloutPlanDetail {
         status: "pending",
         detail: "",
         logDir: null,
+        logExcerpt: null,
         updatedAt: new Date().toISOString(),
       },
     ],

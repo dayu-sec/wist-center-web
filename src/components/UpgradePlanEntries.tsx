@@ -71,6 +71,7 @@ export function UpgradePlanEntries({
       <ul className={styles.entries}>
         {entries.map((entry) => (
           <li key={entry.targetId} className={styles.entry}>
+            <div className={styles.row}>
             <span className={styles.target}>{entry.targetId}</span>
             <Badge tone={rolloutToneToBadge(entryStatusTone(entry.status))}>
               {entryStatusLabel(entry.status)}
@@ -105,6 +106,15 @@ export function UpgradePlanEntries({
               >
                 重试
               </button>
+            ) : null}
+            </div>
+            {entry.logExcerpt ? (
+              // 失败回执带回来的日志摘要：直接展开看，不必去网关捞文件。
+              // `pre` 保留行尾/缩进（日志是给人读的原文，不能重排）。
+              <details className={styles.logDetails}>
+                <summary className={styles.logSummary}>任务日志</summary>
+                <pre className={styles.logText}>{entry.logExcerpt}</pre>
+              </details>
             ) : null}
           </li>
         ))}

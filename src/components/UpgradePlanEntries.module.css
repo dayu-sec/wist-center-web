@@ -21,9 +21,16 @@
 
 .entry {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+/* 一行一台：状态 / 原因 / 日志目录 / 时间 / 重试。 */
+.row {
+  display: flex;
   align-items: baseline;
   gap: 10px;
-  font-size: 12px;
 }
 
 .target {
@@ -64,6 +71,34 @@
   color: var(--text-3);
   font-family: var(--font-mono);
   font-size: 11px;
+}
+
+/* 任务日志摘要：默认收起，失败时点开就是现场（等宽、可滚动、保留换行）。 */
+.logDetails {
+  margin-left: 0;
+  font-size: 11px;
+}
+
+.logSummary {
+  cursor: pointer;
+  color: var(--text-3);
+  user-select: none;
+}
+
+.logText {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.04));
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* 逐台「重试」：小、靠右、只出现在失败条目上，不跟时间列抢注意力。 */
