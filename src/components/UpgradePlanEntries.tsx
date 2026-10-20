@@ -112,7 +112,12 @@ export function UpgradePlanEntries({
               // 失败回执带回来的日志摘要：直接展开看，不必去网关捞文件。
               // `pre` 保留行尾/缩进（日志是给人读的原文，不能重排）。
               <details className={styles.logDetails}>
-                <summary className={styles.logSummary}>任务日志</summary>
+                <summary className={styles.logSummary}>
+                  任务日志
+                  {entry.taskId ? (
+                    <span className={styles.taskId}>{entry.taskId}</span>
+                  ) : null}
+                </summary>
                 <pre className={styles.logText}>{entry.logExcerpt}</pre>
               </details>
             ) : null}

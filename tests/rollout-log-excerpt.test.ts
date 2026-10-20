@@ -54,6 +54,7 @@ responder = () =>
       work_id: null,
       status: "failed",
       detail,
+      task_id: "upgrade-plan-1-20261020-143000",
       log_dir: "/var/lib/gwlinkd/tasks/upgrade-p-1",
       log_excerpt: excerpt,
       updated_at: "2026-10-20T00:02:00+00:00",
@@ -65,6 +66,10 @@ assert(plan.data.entries.length === 1, "条目数");
 const entry = plan.data.entries[0];
 assert(entry.status === "failed", "状态");
 assert(entry.logDir === "/var/lib/gwlinkd/tasks/upgrade-p-1", "log_dir 归一化");
+assert(
+  entry.taskId === "upgrade-plan-1-20261020-143000",
+  "task_id 归一化（失败日志必须能对上那一次执行）",
+);
 assert(entry.logExcerpt === excerpt, "log_excerpt 原样带出（不压缩换行/缩进）");
 assert(
   entry.logExcerpt!.split("\n").length === excerpt.split("\n").length,
@@ -79,6 +84,7 @@ responder = () =>
       workId: null,
       status: "failed",
       detail: "boom",
+      taskId: "upgrade-plan-2-20261020-144500",
       logDir: "/tmp/tasks/x",
       logExcerpt: "line-1\nline-2",
       updatedAt: "2026-10-20T00:03:00+00:00",
@@ -86,6 +92,10 @@ responder = () =>
   );
 plan = await fetchUpgradePlan("plan-1");
 assert(plan.data.entries[0].logExcerpt === "line-1\nline-2", "camelCase log_excerpt");
+assert(
+  plan.data.entries[0].taskId === "upgrade-plan-2-20261020-144500",
+  "camelCase task_id",
+);
 
 // --- 3. 老中心：没有这两个字段时是 null，不是 undefined / 空串 ---------------------
 responder = () =>
@@ -100,6 +110,7 @@ responder = () =>
   );
 plan = await fetchUpgradePlan("plan-1");
 const bare = plan.data.entries[0];
+assert(bare.taskId === null, "缺 task_id → null");
 assert(bare.logDir === null, "缺 log_dir → null");
 assert(bare.logExcerpt === null, "缺 log_excerpt → null");
 

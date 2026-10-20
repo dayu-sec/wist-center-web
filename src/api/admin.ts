@@ -264,6 +264,8 @@ export interface RolloutPlanEntry {
   /** pending | dispatched | succeeded | failed */
   status: string;
   detail: string;
+  /** 本次任务 ID（网关 `tasks/<kind>-<task_id>-<ts>/`）；同一份计划重试会变。 */
+  taskId: string | null;
   /** 任务执行日志目录（网关本机路径）；仅在网关回报了任务日志时存在。 */
   logDir: string | null;
   /** 任务执行日志摘要（失败回执才带；网关侧已脱敏，中心再截一次）。 */
@@ -850,6 +852,7 @@ function normalizeRolloutEntry(payload: any): RolloutPlanEntry {
     workId: optionalString(pick(payload, "work_id", "workId")),
     status: requiredString(payload.status, "entry.status"),
     detail: optionalString(payload.detail) ?? "",
+    taskId: optionalString(pick(payload, "task_id", "taskId")),
     logDir: optionalString(pick(payload, "log_dir", "logDir")),
     logExcerpt: optionalString(pick(payload, "log_excerpt", "logExcerpt")),
     updatedAt: requiredString(
@@ -1967,6 +1970,7 @@ function exampleRolloutPlanDetail(planId: string): RolloutPlanDetail {
         workId: null,
         status: "dispatched",
         detail: "",
+        taskId: null,
         logDir: null,
         logExcerpt: null,
         updatedAt: new Date().toISOString(),
@@ -1976,6 +1980,7 @@ function exampleRolloutPlanDetail(planId: string): RolloutPlanDetail {
         workId: null,
         status: "pending",
         detail: "",
+        taskId: null,
         logDir: null,
         logExcerpt: null,
         updatedAt: new Date().toISOString(),

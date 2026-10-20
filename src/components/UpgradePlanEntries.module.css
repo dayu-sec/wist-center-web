@@ -85,6 +85,13 @@
   user-select: none;
 }
 
+/* 任务 ID：与那次执行的 `tasks/<kind>-<task_id>-<ts>/` 一一对应（重试会换一个）。 */
+.taskId {
+  margin-left: 8px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+}
+
 .logText {
   margin: 6px 0 0;
   padding: 8px 10px;
