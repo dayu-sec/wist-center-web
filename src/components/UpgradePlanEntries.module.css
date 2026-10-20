@@ -54,6 +54,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 任务日志目录：网关本机路径（等宽、可截断，完整值在 title 里）。 */
+.logDir {
+  flex-shrink: 1;
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
 /* 逐台「重试」：小、靠右、只出现在失败条目上，不跟时间列抢注意力。 */
 .retryButton {
   flex-shrink: 0;

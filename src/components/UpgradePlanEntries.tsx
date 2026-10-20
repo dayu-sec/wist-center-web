@@ -87,6 +87,11 @@ export function UpgradePlanEntries({
             ) : (
               <span className={styles.detailEmpty} />
             )}
+            {entry.logDir ? (
+              <span className={styles.logDir} title={entry.logDir}>
+                日志 {entry.logDir}
+              </span>
+            ) : null}
             <span className={styles.time}>
               {entry.updatedAt ? formatDateTime(entry.updatedAt) : "—"}
             </span>
