@@ -207,7 +207,11 @@ function TrendRow({
 }) {
   const points = buildPoints(samples, valueOf);
   const gradientId = `gw-trend-${id}`;
-  const area = points
+  // 空序列（整列都是 null，例如网关没上报 cpu/memory）时 `buildPoints` 返回 `[]` ——
+  // 空数组是**真值**，用 `points ?` 判断会进到 `points[0].x` 而抛 TypeError（整页白屏）。
+  // 所以判据必须是「有没有点」，不是「是不是空值」。
+  const hasPoints = points.length > 0;
+  const area = hasPoints
     ? `M ${points[0].x},${VIEW_HEIGHT} ` +
       points.map((point) => `L ${point.x},${point.y}`).join(" ") +
       ` L ${points[points.length - 1].x},${VIEW_HEIGHT} Z`
@@ -232,7 +236,7 @@ function TrendRow({
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>
-        {points ? (
+        {hasPoints ? (
           <>
             <path d={area} fill={`url(#${gradientId})`} />
             <polyline
