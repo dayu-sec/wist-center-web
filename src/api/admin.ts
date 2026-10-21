@@ -34,6 +34,8 @@ export interface GatewayStatusView {
   // 网关宿主侧依赖工具版本（gops / gx，装在 `$HOME/bin`，由 gwlinkd 探测上报）；老数据为 null。
   gopsVersion: string | null;
   gxVersion: string | null;
+  // gwlinkd（网关宿主侧常驻）**自身**版本；与上面 `version`（网关容器）分开。老数据为 null。
+  gwlinkdVersion: string | null;
   // 网关对外域名（管理面「对外地址」‖`[server] public_base_url`）；后端 0.9 起上报，老数据为 null。
   publicBaseUrl: string | null;
   status: GatewayStatus;
@@ -559,6 +561,11 @@ function normalizeGatewayStatusView(payload: any): GatewayStatusView {
     version: requiredString(payload.version, "gateway.version"),
     gopsVersion: nullableString(payload, "gops_version", "gopsVersion"),
     gxVersion: nullableString(payload, "gx_version", "gxVersion"),
+    gwlinkdVersion: nullableString(
+      payload,
+      "gwlinkd_version",
+      "gwlinkdVersion",
+    ),
     publicBaseUrl: nullableString(payload, "public_base_url", "publicBaseUrl"),
     status: normalizeGatewayStatus(payload.status),
     health: normalizeGatewayHealth(payload.health),
@@ -882,6 +889,7 @@ function isoMinutesAgo(minutes: number): string {
 const NO_GATEWAY_EXTRAS = {
   gopsVersion: null,
   gxVersion: null,
+  gwlinkdVersion: null,
   publicBaseUrl: null,
   uptimeSeconds: null,
   agentCount: null,
