@@ -22,6 +22,7 @@ import {
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
 import { GatewayManualUpgradePanel } from "./GatewayManualUpgradePanel";
+import { GatewayOpsPanel } from "./GatewayOpsPanel";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
 import { GatewayVersionText } from "./GatewayVersionText";
 import styles from "./GatewayDetailPage.module.css";
@@ -154,6 +155,12 @@ export function GatewayDetailPage() {
               />
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {gateway ? (
+        <section className={styles.section}>
+          <GatewayOpsPanel gatewayId={gateway.gatewayId} />
         </section>
       ) : null}
 

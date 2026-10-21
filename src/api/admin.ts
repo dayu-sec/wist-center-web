@@ -2129,3 +2129,107 @@ export async function fetchBackendVersion(): Promise<string> {
   const payload = await requestJson<unknown>("/api/v1/version");
   return normalizeBackendVersion(payload);
 }
+
+// ── 网关运行时操作：体检 / 重启（控制命令通道） ──
+//
+// 与「规则发布」共用同一条命令队列：中心入队 → gwlinkd 短轮询取走执行 → 回执落库。
+// 这里只做「下发 + 查状态」，**不等待**——重启会断掉执行者本身。
+// 三条命令都是**写操作，刻意不回落示例数据**：假回执比没有更误导。
+
+export type GatewayControlTarget = "gateway" | "gwlinkd";
+
+export interface GatewayControlEnqueued {
+  gateway_id: string;
+  command_id: string;
+  kind: string;
+  /** 同 kind 已有在飞命令时复用（连点两次不会跑两次）。 */
+  reused?: boolean;
+  state?: string;
+}
+
+export type DiagnoseCheckStatus = "ok" | "warn" | "fail";
+
+export interface DiagnoseCheck {
+  code: string;
+  source?: string;
+  status: DiagnoseCheckStatus | (string & {});
+  title: string;
+  detail?: string | null;
+  hint?: string | null;
+  evidence?: unknown;
+}
+
+export interface DiagnoseReport {
+  schema_version?: string;
+  generated_at?: string;
+  summary?: { ok: number; warn: number; fail: number; exit_code: number };
+  checks?: DiagnoseCheck[];
+}
+
+/** 最近一次体检：`state` 区分“没跑完”（pending/leased）与“跑了”（done/failed）。 */
+export interface LatestDiagnose {
+  gateway_id: string;
+  command_id: string;
+  state: string;
+  response_status: number | null;
+  report: DiagnoseReport | null;
+  error: string | null;
+  requested_at: string;
+  updated_at: string;
+}
+
+export interface GatewayControlCommandStatus {
+  gateway_id: string;
+  command_id: string;
+  kind: string;
+  state: string;
+  response_status: number | null;
+  error: string | null;
+  updated_at: string;
+}
+
+/** 让网关跑一次体检（异步：返回 `command_id`，结果用 `fetchLatestGatewayDiagnose` 取）。 */
+export async function enqueueGatewayDiagnose(
+  gatewayId: string,
+): Promise<GatewayControlEnqueued> {
+  return requestJson<GatewayControlEnqueued>(
+    `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/diagnose`,
+    { method: "POST" },
+  );
+}
+
+/** 最近一次体检报告；从未跑过（404）→ `null`。 */
+export async function fetchLatestGatewayDiagnose(
+  gatewayId: string,
+): Promise<LatestDiagnose | null> {
+  const path = `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/diagnose`;
+  try {
+    return await requestJson<LatestDiagnose>(path);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/** 下发重启指令（`gateway` = 网关栈容器；`gwlinkd` = 宿主常驻）。 */
+export async function enqueueGatewayRestart(
+  gatewayId: string,
+  target: GatewayControlTarget,
+): Promise<GatewayControlEnqueued> {
+  return requestJson<GatewayControlEnqueued>(
+    `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/restart`,
+    { method: "POST", body: JSON.stringify({ target }) },
+  );
+}
+
+/** 查一条控制命令的当前状态（页面轮询重启结果用）。 */
+export async function fetchGatewayControlCommand(
+  gatewayId: string,
+  commandId: string,
+): Promise<GatewayControlCommandStatus> {
+  return requestJson<GatewayControlCommandStatus>(
+    `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/commands/${encodeURIComponent(commandId)}`,
+  );
+}

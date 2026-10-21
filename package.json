@@ -1,7 +1,7 @@
 {
   "name": "wist-center-web",
   "private": true,
-  "version": "0.10.8",
+  "version": "0.10.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
     "test:artifact-name": "tsx tests/artifact-name.test.ts",
     "test:package-form": "tsx tests/package-form.test.ts",
     "test:gateway-targets": "tsx tests/gateway-upgrade-targets.test.ts",
+    "test:gateway-ops": "tsx tests/gateway-ops-contract.test.ts",
     "test:release-components": "tsx tests/release-components.test.ts",
     "test:package-sources": "tsx tests/package-sources-contract.test.ts",
     "test:manual-upgrade": "tsx tests/manual-upgrade.test.ts",

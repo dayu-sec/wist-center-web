@@ -47,6 +47,14 @@ import {
   type RetryPlanCommand,
   type RotateGatewayLinkTokenCommand,
 } from "../api";
+import {
+  enqueueGatewayDiagnose,
+  enqueueGatewayRestart,
+  fetchGatewayControlCommand,
+  fetchLatestGatewayDiagnose,
+  type GatewayControlTarget,
+} from "../api";
+import { isTerminalCommandState } from "../components/gatewayOps";
 
 /**
  * 当前缓存里有多少个查询**回落到示例数据**（`source === "example"`）。
@@ -624,5 +632,69 @@ export function useBackendVersion() {
     queryKey: ["backend-version"],
     queryFn: fetchBackendVersion,
     staleTime: Infinity,
+  });
+}
+
+// ── 网关运行时操作（体检 / 重启）──
+//
+// 轮询口径：后端返回的 `state` 是命令队列状态（pending → leased → done/failed/expired）。
+// **只在这三个终态停**（`isTerminalCommandState`）；其它取值（老后端 / 契约漂移）继续轮询，
+// 宁可能多问几次，也不能把“还在跑”提前当成“结束了”。
+
+/** 最近一次体检（含报告）。体检在飞时每 1.5s 自动刷新。 */
+export function useLatestGatewayDiagnose(gatewayId: string) {
+  return useQuery({
+    queryKey: ["gateway-diagnose", gatewayId],
+    queryFn: () => fetchLatestGatewayDiagnose(gatewayId),
+    enabled: Boolean(gatewayId),
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      return state === "pending" || state === "leased" ? 1500 : false;
+    },
+  });
+}
+
+/** 一条控制命令的状态；未到终态时每 1.5s 自动刷新。 */
+export function useGatewayCommandStatus(
+  gatewayId: string,
+  commandId: string | null,
+) {
+  return useQuery({
+    queryKey: ["gateway-command", gatewayId, commandId],
+    queryFn: () => fetchGatewayControlCommand(gatewayId, commandId ?? ""),
+    enabled: Boolean(gatewayId && commandId),
+    refetchInterval: (query) =>
+      isTerminalCommandState(query.state.data?.state) ? false : 1500,
+  });
+}
+
+/** 下发一次体检。成功后立刻刷新「最近一次体检」（会先显示 pending）。 */
+export function useRunGatewayDiagnose() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gatewayId: string) => enqueueGatewayDiagnose(gatewayId),
+    onSuccess: (_result, gatewayId) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["gateway-diagnose", gatewayId],
+      });
+    },
+  });
+}
+
+/** 下发重启（`gateway` 容器 / `gwlinkd` 宿主常驻）。 */
+export function useRestartGatewayRuntime() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { gatewayId: string; target: GatewayControlTarget }) =>
+      enqueueGatewayRestart(input.gatewayId, input.target),
+    onSuccess: (_result, input) => {
+      // 重启会换掉进程/容器：状态视图与体检记录都要重新取。
+      void queryClient.invalidateQueries({
+        queryKey: ["gateway-command", input.gatewayId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["gateway-status", input.gatewayId],
+      });
+    },
   });
 }
