@@ -26,11 +26,15 @@
   font-size: 12px;
 }
 
-/* 一行一台：状态 / 原因 / 日志目录 / 时间 / 重试。 */
+/* 第一行：目标 / 状态 / 时间 / 重试；原因与日志路径各占下一行。 */
 .row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
+}
+
+.spacer {
+  flex: 1 1 auto;
 }
 
 .target {
@@ -40,37 +44,100 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 执行反馈：整块可点（复制完整反馈），正文可换行，右侧是复制反馈。 */
 .detail {
-  flex: 1 1 auto;
-  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-top: 2px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2, rgba(0, 0, 0, 0.03));
   color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: left;
+  cursor: copy;
   overflow-wrap: anywhere;
 }
 
+.detail:hover {
+  border-color: var(--border);
+}
+
+.detail:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
 .detailCrit {
+  background: var(--crit-soft, rgba(200, 40, 40, 0.06));
   color: var(--crit);
 }
 
-.detailEmpty {
+.detailText {
   flex: 1 1 auto;
+  min-width: 0;
+}
+
+.copyHint {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* 日志路径：单独一行、可换行，点一下复制路径（不再用会被截断的窄列）。 */
+.logPath {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: copy;
+}
+
+.logPath:hover .logPathText {
+  color: var(--text);
+}
+
+.logPath:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-sm);
+}
+
+.logLabel {
+  flex: 0 0 auto;
+  color: var(--text-4);
+}
+
+.logPathText {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.logPath .copyHint {
+  margin-left: 2px;
 }
 
 .time {
   flex-shrink: 0;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
-}
-
-/* 任务日志目录：网关本机路径（等宽、可截断，完整值在 title 里）。 */
-.logDir {
-  flex-shrink: 1;
-  max-width: 34ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 /* 任务日志摘要：默认收起，失败时点开就是现场（等宽、可滚动、保留换行）。 */

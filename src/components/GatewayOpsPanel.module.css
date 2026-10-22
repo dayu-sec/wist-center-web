@@ -108,8 +108,9 @@
 }
 
 .checkDetail {
+  position: relative;
   margin: 8px 0 0;
-  padding: 8px;
+  padding: 8px 52px 8px 8px;
   overflow-x: auto;
   border-radius: var(--radius-xs);
   background: var(--surface-2);
@@ -118,6 +119,32 @@
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  cursor: copy;
+}
+
+.checkDetail:hover {
+  background: var(--surface-3, var(--surface-2));
+}
+
+.checkDetail:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* 失败项的详情：左侧红条，与「失败」徽标呼应。 */
+.checkDetailFailed {
+  border-left: 3px solid var(--crit);
+}
+
+/* 「复制 / 已复制 / 复制失败」：贴在详情右上角，不参与正文排版。 */
+.copyHint {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  color: var(--text-4);
+  font-size: 10.5px;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .checkHint {

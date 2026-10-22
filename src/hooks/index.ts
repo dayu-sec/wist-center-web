@@ -744,6 +744,7 @@ export function useWparseTags(repoName: string, enabled = true) {
 }
 
 export function usePublishWparseRelease(repoName: string) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: {
       tag: string;
@@ -751,5 +752,10 @@ export function usePublishWparseRelease(repoName: string) {
       reason?: string;
       verifyTag?: boolean;
     }): Promise<WparsePublishResult> => publishWparseRelease(repoName, input),
+    onSuccess: () => {
+      // 发布入口只**建计划**：新计划要立刻出现在「发布执行」页的待审批列表里。
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
+    },
   });
 }

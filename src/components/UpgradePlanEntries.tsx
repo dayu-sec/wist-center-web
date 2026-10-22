@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import {
   countEntries,
   entryStatusLabel,
@@ -5,7 +6,43 @@ import {
 } from "@dayu-sec/wist-web-core/release";
 import { useUpgradePlan } from "../hooks";
 import { Badge, LoadingDots, formatDateTime, rolloutToneToBadge } from "./ui";
+import { splitExecutionDetail } from "./executionDetail";
+import { useCopyFeedback } from "./copyFeedback";
 import styles from "./UpgradePlanEntries.module.css";
+
+/**
+ * 一段**点击即复制**的文本：整块是按钮，右侧给「复制 / 已复制」反馈。
+ *
+ * 执行反馈里常带网关本机路径，手选容易只选到一半；做成点击复制比让用户拖蓝更稳。
+ * 剪贴板不可用（非安全上下文 / 权限拒绝）时静默不动，不打断页面。
+ */
+function CopyText({
+  text,
+  className,
+  label,
+  children,
+}: {
+  text: string;
+  className: string;
+  label: string;
+  children: ReactNode;
+}) {
+  const { state, copy } = useCopyFeedback();
+
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={() => copy(text)}
+      title={`${label}（点击复制）`}
+    >
+      {children}
+      <span className={styles.copyHint} aria-live="polite">
+        {state === "ok" ? "已复制" : state === "failed" ? "复制失败" : "复制"}
+      </span>
+    </button>
+  );
+}
 
 /**
  * 一份计划的**逐目标进度**（`RolloutPlanView`：plan + entries）。
@@ -69,60 +106,73 @@ export function UpgradePlanEntries({
         成功 {counts.succeeded} · 失败 {counts.failed}
       </div>
       <ul className={styles.entries}>
-        {entries.map((entry) => (
-          <li key={entry.targetId} className={styles.entry}>
-            <div className={styles.row}>
-            <span className={styles.target}>{entry.targetId}</span>
-            <Badge tone={rolloutToneToBadge(entryStatusTone(entry.status))}>
-              {entryStatusLabel(entry.status)}
-            </Badge>
-            {entry.detail ? (
-              <span
-                className={`${styles.detail} ${
-                  entry.status === "failed" ? styles.detailCrit : ""
-                }`}
-                title={entry.detail}
-              >
-                {entry.detail}
-              </span>
-            ) : (
-              <span className={styles.detailEmpty} />
-            )}
-            {entry.logDir ? (
-              <span className={styles.logDir} title={entry.logDir}>
-                日志 {entry.logDir}
-              </span>
-            ) : null}
-            <span className={styles.time}>
-              {entry.updatedAt ? formatDateTime(entry.updatedAt) : "—"}
-            </span>
-            {retryable && entry.status === "failed" && onRetryTarget ? (
-              <button
-                type="button"
-                className={styles.retryButton}
-                disabled={retryPending}
-                onClick={() => onRetryTarget(entry.targetId)}
-                title="重派这台到一份新的补跑计划（同一 plan_id 改状态会被网关跳过）"
-              >
-                重试
-              </button>
-            ) : null}
-            </div>
-            {entry.logExcerpt ? (
-              // 失败回执带回来的日志摘要：直接展开看，不必去网关捞文件。
-              // `pre` 保留行尾/缩进（日志是给人读的原文，不能重排）。
-              <details className={styles.logDetails}>
-                <summary className={styles.logSummary}>
-                  任务日志
-                  {entry.taskId ? (
-                    <span className={styles.taskId}>{entry.taskId}</span>
-                  ) : null}
-                </summary>
-                <pre className={styles.logText}>{entry.logExcerpt}</pre>
-              </details>
-            ) : null}
-          </li>
-        ))}
+        {entries.map((entry) => {
+          const { message, logPath } = splitExecutionDetail(
+            entry.detail,
+            entry.logDir,
+          );
+          return (
+            <li key={entry.targetId} className={styles.entry}>
+              <div className={styles.row}>
+                <span className={styles.target}>{entry.targetId}</span>
+                <Badge tone={rolloutToneToBadge(entryStatusTone(entry.status))}>
+                  {entryStatusLabel(entry.status)}
+                </Badge>
+                <span className={styles.spacer} />
+                <span className={styles.time}>
+                  {entry.updatedAt ? formatDateTime(entry.updatedAt) : "—"}
+                </span>
+                {retryable && entry.status === "failed" && onRetryTarget ? (
+                  <button
+                    type="button"
+                    className={styles.retryButton}
+                    disabled={retryPending}
+                    onClick={() => onRetryTarget(entry.targetId)}
+                    title="重派这台到一份新的补跑计划（同一 plan_id 改状态会被网关跳过）"
+                  >
+                    重试
+                  </button>
+                ) : null}
+              </div>
+              {message ? (
+                <CopyText
+                  text={entry.detail ?? message}
+                  className={`${styles.detail} ${
+                    entry.status === "failed" ? styles.detailCrit : ""
+                  }`}
+                  label="复制任务结果"
+                >
+                  <span className={styles.detailText}>{message}</span>
+                </CopyText>
+              ) : null}
+              {logPath ? (
+                <CopyText
+                  text={logPath}
+                  className={styles.logPath}
+                  label="复制日志路径"
+                >
+                  <span className={styles.logLabel}>日志</span>
+                  <code className={styles.logPathText} title={logPath}>
+                    {logPath}
+                  </code>
+                </CopyText>
+              ) : null}
+              {entry.logExcerpt ? (
+                // 失败回执带回来的日志摘要：直接展开看，不必去网关捞文件。
+                // `pre` 保留行尾/缩进（日志是给人读的原文，不能重排）。
+                <details className={styles.logDetails}>
+                  <summary className={styles.logSummary}>
+                    任务日志
+                    {entry.taskId ? (
+                      <span className={styles.taskId}>{entry.taskId}</span>
+                    ) : null}
+                  </summary>
+                  <pre className={styles.logText}>{entry.logExcerpt}</pre>
+                </details>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

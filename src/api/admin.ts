@@ -2276,26 +2276,19 @@ export interface WparseTagsView {
   tags: WparseTag[];
 }
 
-export interface WparsePublishTarget {
-  gatewayId: string;
-  commandId: string;
-  reused: boolean;
-  state: string;
-}
-
-export interface WparsePublishFailure {
-  gatewayId: string;
-  error: string;
-}
-
 export interface WparsePublishResult {
+  /**
+   * 本次发布落的**灰度发布计划**（`action = wparse-release`）。
+   *
+   * 与 ①②③ 一致：`POST publish` 只**建计划**（`status = draft`），不直接下发；
+   * 到「发布执行」页批准后才由中心入队，逐台进度也在那份计划里。
+   */
+  plan: RolloutPlan;
   repo: string;
   group: string;
   tag: string;
   commit: string | null;
   tagVerified: boolean;
-  targets: WparsePublishTarget[];
-  errors: WparsePublishFailure[];
 }
 
 function normalizeWparseRepo(raw: any): WparseRepo {
@@ -2343,24 +2336,13 @@ function normalizeWparseTags(raw: any): WparseTagsView {
 }
 
 function normalizeWparsePublishResult(raw: any): WparsePublishResult {
-  const targets = Array.isArray(raw?.targets) ? raw.targets : [];
-  const errors = Array.isArray(raw?.errors) ? raw.errors : [];
   return {
+    plan: normalizeRolloutPlan(raw?.plan),
     repo: requiredString(raw?.repo, "repo"),
     group: requiredString(raw?.group, "group"),
     tag: requiredString(raw?.tag, "tag"),
     commit: nullableString(raw, "commit"),
     tagVerified: raw?.tag_verified === true,
-    targets: targets.map((item: any) => ({
-      gatewayId: requiredString(item?.gateway_id, "gateway_id"),
-      commandId: requiredString(item?.command_id, "command_id"),
-      reused: item?.reused === true,
-      state: typeof item?.state === "string" ? item.state : "pending",
-    })),
-    errors: errors.map((item: any) => ({
-      gatewayId: requiredString(item?.gateway_id, "gateway_id"),
-      error: requiredString(item?.error, "error"),
-    })),
   };
 }
 
@@ -2385,7 +2367,7 @@ export async function fetchWparseTags(
   return normalizeWparseTags(raw);
 }
 
-/** 发布选中 tag 到目标网关（异步：返回每台网关的 command_id，页面轮询命令状态）。 */
+/** 建一份**待审批**的发布计划（不直接下发：批准由「发布执行」页统一完成）。 */
 export async function publishWparseRelease(
   name: string,
   input: {

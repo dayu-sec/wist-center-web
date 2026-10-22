@@ -47,6 +47,10 @@ jobs:
       - name: Test (package sources contract)
         run: npm run test:package-sources
 
+      # 发布执行页的逐台反馈：消息 / 日志路径拆分（长路径不再撑行）。
+      - name: Test (execution detail contract)
+        run: npm run test:execution-detail
+
       # 网关详情页手动升级：单目标 / 单阶段 / 版本去 v 前缀 / spec 与发布页同源。
       - name: Test (manual gateway upgrade)
         run: npm run test:manual-upgrade

@@ -16,23 +16,42 @@ type ReleaseFlow =
   | "wparse-rules"
   | "wparse-infra";
 
-const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
+type Flow = { key: ReleaseFlow; name: string; tagline: string };
+
+/**
+ * 发布方式分两组，避免把「装运行时」和「推内容 / 规则」混在一排：
+ * - 运行时：① 宿主组件升级安装、② Agent 包下发；
+ * - 内容与配置：③ 知识库、④ wparse-rules、⑤ wparse-infra。
+ */
+const FLOW_GROUPS: { key: string; label: string; flows: Flow[] }[] = [
   {
-    key: "upgrade",
-    name: "① 升级安装",
-    tagline: "stack / gops / gx / gwlinkd",
+    key: "runtime",
+    label: "运行时",
+    flows: [
+      {
+        key: "upgrade",
+        name: "① 升级安装",
+        tagline: "stack / gops / gx / gwlinkd",
+      },
+      { key: "agent-package", name: "② Agent 包下发", tagline: "推到网关包管理" },
+    ],
   },
-  { key: "agent-package", name: "② Agent 包下发", tagline: "推到网关包管理" },
-  { key: "knowledge", name: "③ 知识库下发", tagline: "推到网关知识库管理" },
   {
-    key: "wparse-rules",
-    name: "④ wparse-rules",
-    tagline: "规则 / 模型 tag 发布",
-  },
-  {
-    key: "wparse-infra",
-    name: "⑤ wparse-infra",
-    tagline: "配置 / infra tag 发布",
+    key: "content",
+    label: "内容与配置",
+    flows: [
+      { key: "knowledge", name: "③ 知识库下发", tagline: "推到网关知识库管理" },
+      {
+        key: "wparse-rules",
+        name: "④ wparse-rules",
+        tagline: "规则 / 模型 tag 发布",
+      },
+      {
+        key: "wparse-infra",
+        name: "⑤ wparse-infra",
+        tagline: "配置 / infra tag 发布",
+      },
+    ],
   },
 ];
 
@@ -55,38 +74,50 @@ export function ReleasePage() {
   return (
     <PageShell
       title="发布计划"
-      summary="把中心托管的包 / 规则发出去：① 宿主组件升级安装；② Agent 包推到包管理；③ 知识库推到网关知识库；④/⑤ 选 wparse-rules / wparse-infra 的 tag 直接重载目标网关。"
+      summary="把中心托管的包 / 规则发出去，分两组：运行时（① 宿主组件升级安装、② Agent 包推到包管理）；内容与配置（③ 知识库、④/⑤ 选 wparse-rules / wparse-infra 的 tag 重载目标网关）。四种方式都先建计划，到「发布执行」页批准后才真正下发。"
     >
       <section className={styles.workspace}>
         <header className={styles.workspaceHeader}>
           <div>
             <h2 className={styles.workspaceTitle}>发布方式</h2>
             <p className={styles.workspaceSubtitle}>
-              ①②③ 的区别在「谁决定升级 / 生效」：① 由中心直接推下去安装；② 只把包交给网关，
-              升不升由网关决定；③ 只把知识库内容交给网关，是否激活由计划里的开关决定。
-              ④/⑤ 是按 tag 的规则发布：选中 tag 后经 wparse-proxy 命令队列直达目标网关。
+              运行时（①②）决定「装什么、怎么升」：① 由中心直接推下去安装；② 只把包交给网关，
+              升不升由网关决定。内容与配置（③④⑤）决定「推什么内容 / 规则」：③ 知识库内容是否激活
+              由计划里的开关决定；④/⑤ 选中 tag 后同样先落一份计划，批准后由中心经 wparse-proxy
+              命令队列投给目标网关（网关只做 relay）。
             </p>
           </div>
         </header>
-        <div className={styles.tabs} role="tablist" aria-label="发布方式">
-          {FLOWS.map((flow) => (
-            <button
-              key={flow.key}
-              type="button"
-              role="tab"
-              id={`release-tab-${flow.key}`}
-              aria-selected={flow.key === activeFlow}
-              aria-controls="release-panel"
-              className={
-                flow.key === activeFlow
-                  ? `${styles.tab} ${styles.tabActive}`
-                  : styles.tab
-              }
-              onClick={() => setActiveFlow(flow.key)}
-            >
-              <strong>{flow.name}</strong>
-              <span>{flow.tagline}</span>
-            </button>
+        <div className={styles.tabGroups}>
+          {FLOW_GROUPS.map((group) => (
+            <div className={styles.tabGroup} key={group.key}>
+              <span className={styles.groupLabel}>{group.label}</span>
+              <div
+                className={styles.tabs}
+                role="tablist"
+                aria-label={`${group.label}发布方式`}
+              >
+                {group.flows.map((flow) => (
+                  <button
+                    key={flow.key}
+                    type="button"
+                    role="tab"
+                    id={`release-tab-${flow.key}`}
+                    aria-selected={flow.key === activeFlow}
+                    aria-controls="release-panel"
+                    className={
+                      flow.key === activeFlow
+                        ? `${styles.tab} ${styles.tabActive}`
+                        : styles.tab
+                    }
+                    onClick={() => setActiveFlow(flow.key)}
+                  >
+                    <strong>{flow.name}</strong>
+                    <span>{flow.tagline}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
         <div
@@ -105,13 +136,13 @@ export function ReleasePage() {
             <WparseReleasePanel
               repoName="wparse-rules"
               title="wparse-rules 发布"
-              subtitle="规则 / 模型仓库：选中 tag 后重载目标网关的 models 分组。"
+              subtitle="规则 / 模型仓库：创建计划，批准后重载目标网关的 models 分组。"
             />
           ) : (
             <WparseReleasePanel
               repoName="wparse-infra"
               title="wparse-infra 发布"
-              subtitle="配置 / infra 仓库：选中 tag 后重载目标网关的 infra 分组。"
+              subtitle="配置 / infra 仓库：创建计划，批准后重载目标网关的 infra 分组。"
             />
           )}
         </div>

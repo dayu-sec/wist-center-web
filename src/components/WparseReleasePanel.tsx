@@ -2,28 +2,29 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { ApiError } from "../api";
 import {
-  useGatewayCommandStatus,
   useGatewayStatusView,
   usePublishWparseRelease,
   useWparseRepos,
   useWparseTags,
 } from "../hooks";
-import { commandStateLabel, commandStateTone } from "./gatewayOps";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
 import planStyles from "./PlanForm.module.css";
-import { Badge, ErrorBanner, PrimaryButton, SectionCard, formatDateTime } from "./ui";
+import { Badge, ErrorBanner, PrimaryButton, ReceiptCard, SectionCard, formatDateTime } from "./ui";
 import styles from "./WparseReleasePanel.module.css";
 import {
   defaultWparseTag,
   shortWparseCommit,
   validWparseTag,
+  wparsePlanTargetCount,
 } from "./wparseRelease";
 
 /**
  * 规则 / 配置发布入口（`wparse-rules` / `wparse-infra`）。
  *
  * 一个组件服务两个入口：repo 名从 props 来，repo 地址 / provider / token 全部由中心配置决定。
- * 发布动作复用 wparse-proxy 的命令队列；gwlinkd 的 relay 原样执行，不需要网关改动。
+ *
+ * 与 ①②③ 一致：这里只**建计划**（`draft`），真正下发要等「发布执行」页批准；
+ * 批准后由中心经 wparse-proxy 入队，gwlinkd 的 relay 原样执行，不需要网关改动。
  */
 export function WparseReleasePanel({
   repoName,
@@ -300,91 +301,48 @@ export function WparseReleasePanel({
 
             <div className={planStyles.formAction}>
               <PrimaryButton type="submit" disabled={!canSubmit}>
-                {publish.isPending ? "发布中…" : "发布到所选网关"}
+                {publish.isPending ? "创建中…" : "创建发布计划"}
               </PrimaryButton>
             </div>
           </form>
 
           {publish.error ? (
-            <ErrorBanner>发布失败：{describeError(publish.error)}</ErrorBanner>
+            <ErrorBanner>创建计划失败：{describeError(publish.error)}</ErrorBanner>
           ) : null}
 
           {result ? (
-            <div className={styles.result}>
-              <div className={styles.resultHeader}>
-                <strong>发布回执</strong>
-                <span>
-                  {result.repo} · {result.tag}
-                  {result.commit ? ` · ${shortWparseCommit(result.commit)}` : ""}
-                </span>
-                {result.tagVerified ? (
-                  <Badge tone="green">tag 已校验</Badge>
-                ) : (
-                  <Badge tone="amber">tag 未校验</Badge>
-                )}
-              </div>
-              {result.targets.map((target) => (
-                <WparsePublishTargetRow
-                  key={target.gatewayId}
-                  gatewayId={target.gatewayId}
-                  commandId={target.commandId}
-                  reused={target.reused}
-                />
-              ))}
-              {result.errors.map((failure) => (
-                <div key={failure.gatewayId} className={styles.targetError}>
-                  {failure.gatewayId}：{failure.error}
-                </div>
-              ))}
-            </div>
+            <>
+              <ReceiptCard
+                title="发布计划回执（待审批）"
+                fields={[
+                  ["计划 ID", result.plan.planId],
+                  ["仓库", `${result.repo}（${result.group}）`],
+                  [
+                    "tag",
+                    `${result.tag}${
+                      result.commit ? ` · ${shortWparseCommit(result.commit)}` : ""
+                    }`,
+                  ],
+                  ["tag 校验", result.tagVerified ? "已校验" : "未校验"],
+                  [
+                    "目标",
+                    `${wparsePlanTargetCount(result.plan)} 个网关`,
+                  ],
+                  ["状态", result.plan.status],
+                  ["创建时间", formatDateTime(result.plan.createdAt)],
+                ]}
+              />
+              <span className={planStyles.formNote}>
+                计划已创建，但<strong>尚未下发</strong>：到「发布执行」页批准后，中心才会把 reload
+                命令投给目标网关；逐台进度也在那里看。
+              </span>
+            </>
           ) : null}
         </>
       )}
     </SectionCard>
   );
 }
-
-/** 逐网关轮询命令状态（终态自动停）。 */
-function WparsePublishTargetRow({
-  gatewayId,
-  commandId,
-  reused,
-}: {
-  gatewayId: string;
-  commandId: string;
-  reused: boolean;
-}) {
-  const query = useGatewayCommandStatus(gatewayId, commandId);
-  const status = query.data;
-  const state = status?.state ?? "pending";
-  // `expired` 是“网关没取走”，对发布来说等同于失败；状态查询本身失败也要显式标红，
-  // 不能一直显示“排队中”（那会让人以为还在等，其实状态接口已经挂了）。
-  const tone = query.isError
-    ? "red"
-    : state === "expired"
-      ? "red"
-      : commandStateTone(state);
-  const meta = query.isError
-    ? `状态查询失败：${describeError(query.error)}`
-    : [
-        status?.response_status ? `HTTP ${status.response_status}` : null,
-        reused ? "复用已有命令" : null,
-        status?.error ?? null,
-        status?.updated_at ? formatDateTime(status.updated_at) : null,
-      ]
-        .filter((item): item is string => Boolean(item))
-        .join(" · ");
-      const label = query.isError ? "状态未知" : commandStateLabel(state);
-
-      return (
-        <div className={styles.targetRow}>
-          <span className={styles.targetMain}>{gatewayId}</span>
-          <Badge tone={tone}>{label}</Badge>
-      <span className={styles.targetMeta}>{meta || "等待 gwlinkd 取命令"}</span>
-    </div>
-  );
-}
-
 
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {

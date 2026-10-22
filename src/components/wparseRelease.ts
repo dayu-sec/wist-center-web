@@ -22,3 +22,15 @@ export function shortWparseCommit(commit: string | null | undefined): string {
   if (!commit) return "—";
   return commit.slice(0, 12);
 }
+
+/**
+ * 计划覆盖的目标台数。
+ *
+ * 发布入口只**建计划**：批准前条目全是 `pending`，所以范围只能从阶段里数。
+ * 阶段由服务端切（一个网关只落在一个阶段），直接求和即可。
+ */
+export function wparsePlanTargetCount(plan: {
+  phases: readonly { targetIds: readonly string[] }[];
+}): number {
+  return plan.phases.reduce((sum, phase) => sum + phase.targetIds.length, 0);
+}

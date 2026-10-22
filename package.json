@@ -15,6 +15,7 @@
     "test:release-components": "tsx tests/release-components.test.ts",
     "test:wparse-release": "tsx tests/wparse-release-contract.test.ts",
     "test:package-sources": "tsx tests/package-sources-contract.test.ts",
+    "test:execution-detail": "tsx tests/execution-detail.test.ts",
     "test:manual-upgrade": "tsx tests/manual-upgrade.test.ts",
     "test:admin-token": "tsx tests/admin-token-contract.test.ts",
     "test:theme": "tsx tests/theme-contract.test.ts",

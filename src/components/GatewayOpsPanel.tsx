@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiError, type GatewayControlTarget } from "../api";
+import { ApiError, type DiagnoseCheck, type GatewayControlTarget } from "../api";
 import {
   useGatewayCommandStatus,
   useLatestGatewayDiagnose,
@@ -22,7 +22,48 @@ import {
   SectionCard,
   formatDateTime,
 } from "./ui";
+import { useCopyFeedback } from "./copyFeedback";
 import styles from "./GatewayOpsPanel.module.css";
+
+/**
+ * 一条体检结果的可复制详情：点击整块（或 Enter / 空格）复制「状态 + code + 标题 + 详情 + 建议」。
+ *
+ * 失败项常带一长串漂移清单，手选容易漏行；做成点击复制，方便直接贴到群里 / issue。
+ * 用 `role="button"` 而不是 `<button>`：块里是 `<pre>`（保留原文换行），button 不能包块级内容。
+ */
+function CheckDetail({ check }: { check: DiagnoseCheck }) {
+  const { state, copy } = useCopyFeedback();
+  const text = [
+    `${diagnoseStatusLabel(check.status)} ${check.code} ${check.title}`,
+    check.detail ?? "",
+    check.hint ? `→ ${check.hint}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <pre
+      className={`${styles.checkDetail} ${
+        check.status === "fail" ? styles.checkDetailFailed : ""
+      }`}
+      role="button"
+      tabIndex={0}
+      title="点击复制这条体检结果"
+      onClick={() => copy(text)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          copy(text);
+        }
+      }}
+    >
+      {check.detail}
+      <span className={styles.copyHint} aria-live="polite">
+        {state === "ok" ? "已复制" : state === "failed" ? "复制失败" : "复制"}
+      </span>
+    </pre>
+  );
+}
 
 /**
  * 网关详情页的「运行时操作」：体检 / 重启网关 / 重启 gwlinkd。
@@ -197,9 +238,7 @@ export function GatewayOpsPanel({ gatewayId }: { gatewayId: string }) {
                     <code className={styles.checkCode}>{check.code}</code>
                     <span className={styles.checkTitle}>{check.title}</span>
                   </div>
-                  {check.detail ? (
-                    <pre className={styles.checkDetail}>{check.detail}</pre>
-                  ) : null}
+                  {check.detail ? <CheckDetail check={check} /> : null}
                   {check.hint ? (
                     <p className={styles.checkHint}>→ {check.hint}</p>
                   ) : null}

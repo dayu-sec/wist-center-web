@@ -40,6 +40,48 @@
 
 /* ---------- 发布目标切换：胶囊形式，与列表页过滤器同一套语汇 ---------- */
 
+/* 两组：运行时（①②）/ 内容与配置（③④⑤），中间用虚线分隔。 */
+.tabGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tabGroup {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.tabGroup + .tabGroup {
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.groupLabel {
+  flex: 0 0 76px;
+  padding-top: 8px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.tabGroup .tabs {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 720px) {
+  .tabGroup {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .groupLabel {
+    padding-top: 0;
+  }
+}
+
 .tabs {
   display: flex;
   align-items: center;
