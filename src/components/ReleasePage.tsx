@@ -6,9 +6,15 @@ import { AgentPackagePushPanel } from "./AgentPackagePushPanel";
 import { KnowledgePackagePushPanel } from "./KnowledgePackagePushPanel";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
 import { GatewayVersionText } from "./GatewayVersionText";
+import { WparseReleasePanel } from "./WparseReleasePanel";
 import styles from "./ReleaseWorkspace.module.css";
 
-type ReleaseFlow = "upgrade" | "agent-package" | "knowledge";
+type ReleaseFlow =
+  | "upgrade"
+  | "agent-package"
+  | "knowledge"
+  | "wparse-rules"
+  | "wparse-infra";
 
 const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
   {
@@ -18,6 +24,16 @@ const FLOWS: { key: ReleaseFlow; name: string; tagline: string }[] = [
   },
   { key: "agent-package", name: "② Agent 包下发", tagline: "推到网关包管理" },
   { key: "knowledge", name: "③ 知识库下发", tagline: "推到网关知识库管理" },
+  {
+    key: "wparse-rules",
+    name: "④ wparse-rules",
+    tagline: "规则 / 模型 tag 发布",
+  },
+  {
+    key: "wparse-infra",
+    name: "⑤ wparse-infra",
+    tagline: "配置 / infra tag 发布",
+  },
 ];
 
 /**
@@ -39,15 +55,16 @@ export function ReleasePage() {
   return (
     <PageShell
       title="发布计划"
-      summary="把中心托管的包装出去：① 宿主组件推下去升级安装；② Agent 包推到网关的包管理；③ 知识库包推到网关知识库（录入 / 可激活）。"
+      summary="把中心托管的包 / 规则发出去：① 宿主组件升级安装；② Agent 包推到包管理；③ 知识库推到网关知识库；④/⑤ 选 wparse-rules / wparse-infra 的 tag 直接重载目标网关。"
     >
       <section className={styles.workspace}>
         <header className={styles.workspaceHeader}>
           <div>
             <h2 className={styles.workspaceTitle}>发布方式</h2>
             <p className={styles.workspaceSubtitle}>
-              区别在「谁决定升级 / 生效」：① 由中心直接推下去安装；② 只把包交给网关，升不升由网关决定；
-              ③ 只把知识库内容交给网关，是否激活由计划里的开关决定。
+              ①②③ 的区别在「谁决定升级 / 生效」：① 由中心直接推下去安装；② 只把包交给网关，
+              升不升由网关决定；③ 只把知识库内容交给网关，是否激活由计划里的开关决定。
+              ④/⑤ 是按 tag 的规则发布：选中 tag 后经 wparse-proxy 命令队列直达目标网关。
             </p>
           </div>
         </header>
@@ -82,8 +99,20 @@ export function ReleasePage() {
             <UpgradePlanCreatePanel />
           ) : activeFlow === "agent-package" ? (
             <AgentPackagePushPanel />
-          ) : (
+          ) : activeFlow === "knowledge" ? (
             <KnowledgePackagePushPanel />
+          ) : activeFlow === "wparse-rules" ? (
+            <WparseReleasePanel
+              repoName="wparse-rules"
+              title="wparse-rules 发布"
+              subtitle="规则 / 模型仓库：选中 tag 后重载目标网关的 models 分组。"
+            />
+          ) : (
+            <WparseReleasePanel
+              repoName="wparse-infra"
+              title="wparse-infra 发布"
+              subtitle="配置 / infra 仓库：选中 tag 后重载目标网关的 infra 分组。"
+            />
           )}
         </div>
       </section>

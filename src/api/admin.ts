@@ -2233,3 +2233,179 @@ export async function fetchGatewayControlCommand(
     `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/commands/${encodeURIComponent(commandId)}`,
   );
 }
+
+// ── 规则 / 配置发布入口（wparse-rules / wparse-infra） ──
+//
+// tag 列表是**只读候选**；发布复用 wparse-proxy 的命令队列（gwlinkd relay 原样执行）。
+// 写操作**刻意不回落示例数据**：发布失败要冒出来（与 createUpgradePlan / 体检同一取舍）。
+
+export interface WparseRepo {
+  name: string;
+  group: string;
+  provider: string;
+  repo: string;
+  tagSource: string;
+  tokenConfigured: boolean;
+  tagsLimit: number;
+}
+
+export interface WparseReposView {
+  enabled: boolean;
+  /** 真正能发布：`enabled` 且 wparse-proxy 已启用。 */
+  available: boolean;
+  allowManualTag: boolean;
+  maxTargets: number;
+  repos: WparseRepo[];
+}
+
+export interface WparseTag {
+  tag: string;
+  commit: string | null;
+  committedAt: string | null;
+}
+
+export interface WparseTagsView {
+  name: string;
+  group: string;
+  repo: string;
+  provider: string;
+  source: string;
+  /** 外部 API 失败时回落的旧缓存。 */
+  stale: boolean;
+  cachedAt: string | null;
+  tags: WparseTag[];
+}
+
+export interface WparsePublishTarget {
+  gatewayId: string;
+  commandId: string;
+  reused: boolean;
+  state: string;
+}
+
+export interface WparsePublishFailure {
+  gatewayId: string;
+  error: string;
+}
+
+export interface WparsePublishResult {
+  repo: string;
+  group: string;
+  tag: string;
+  commit: string | null;
+  tagVerified: boolean;
+  targets: WparsePublishTarget[];
+  errors: WparsePublishFailure[];
+}
+
+function normalizeWparseRepo(raw: any): WparseRepo {
+  return {
+    name: requiredString(raw?.name, "name"),
+    group: requiredString(raw?.group, "group"),
+    provider: requiredString(raw?.provider, "provider"),
+    repo: requiredString(raw?.repo, "repo"),
+    tagSource: typeof raw?.tag_source === "string" ? raw.tag_source : "manual",
+    tokenConfigured: raw?.token_configured === true,
+    tagsLimit:
+      typeof raw?.tags_limit === "number" ? raw.tags_limit : 100,
+  };
+}
+
+function normalizeWparseRepos(raw: any): WparseReposView {
+  return {
+    enabled: raw?.enabled === true,
+    available: raw?.available === true,
+    allowManualTag: raw?.allow_manual_tag === true,
+    maxTargets: typeof raw?.max_targets === "number" ? raw.max_targets : 20,
+    repos: Array.isArray(raw?.repos) ? raw.repos.map(normalizeWparseRepo) : [],
+  };
+}
+
+function normalizeWparseTag(raw: any): WparseTag {
+  return {
+    tag: requiredString(raw?.tag, "tag"),
+    commit: nullableString(raw, "commit"),
+    committedAt: nullableString(raw, "committed_at", "committedAt"),
+  };
+}
+
+function normalizeWparseTags(raw: any): WparseTagsView {
+  return {
+    name: requiredString(raw?.name, "name"),
+    group: requiredString(raw?.group, "group"),
+    repo: requiredString(raw?.repo, "repo"),
+    provider: requiredString(raw?.provider, "provider"),
+    source: typeof raw?.source === "string" ? raw.source : "manual",
+    stale: raw?.stale === true,
+    cachedAt: nullableString(raw, "cached_at", "cachedAt"),
+    tags: Array.isArray(raw?.tags) ? raw.tags.map(normalizeWparseTag) : [],
+  };
+}
+
+function normalizeWparsePublishResult(raw: any): WparsePublishResult {
+  const targets = Array.isArray(raw?.targets) ? raw.targets : [];
+  const errors = Array.isArray(raw?.errors) ? raw.errors : [];
+  return {
+    repo: requiredString(raw?.repo, "repo"),
+    group: requiredString(raw?.group, "group"),
+    tag: requiredString(raw?.tag, "tag"),
+    commit: nullableString(raw, "commit"),
+    tagVerified: raw?.tag_verified === true,
+    targets: targets.map((item: any) => ({
+      gatewayId: requiredString(item?.gateway_id, "gateway_id"),
+      commandId: requiredString(item?.command_id, "command_id"),
+      reused: item?.reused === true,
+      state: typeof item?.state === "string" ? item.state : "pending",
+    })),
+    errors: errors.map((item: any) => ({
+      gatewayId: requiredString(item?.gateway_id, "gateway_id"),
+      error: requiredString(item?.error, "error"),
+    })),
+  };
+}
+
+/** 列出配置的两个发布入口（不返回 token）。 */
+export async function fetchWparseRepos(): Promise<WparseReposView> {
+  const raw = await requestJson<any>("/api/v1/admin/wparse/repos");
+  return normalizeWparseRepos(raw);
+}
+
+/** 读某个入口的 tag 候选。`refresh=true` 绕过服务端缓存。 */
+export async function fetchWparseTags(
+  name: string,
+  options?: { limit?: number; refresh?: boolean },
+): Promise<WparseTagsView> {
+  const query = new URLSearchParams();
+  if (options?.limit) query.set("limit", String(options.limit));
+  if (options?.refresh) query.set("refresh", "true");
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const raw = await requestJson<any>(
+    `/api/v1/admin/wparse/repos/${encodeURIComponent(name)}/tags${suffix}`,
+  );
+  return normalizeWparseTags(raw);
+}
+
+/** 发布选中 tag 到目标网关（异步：返回每台网关的 command_id，页面轮询命令状态）。 */
+export async function publishWparseRelease(
+  name: string,
+  input: {
+    tag: string;
+    gatewayIds: string[];
+    reason?: string;
+    verifyTag?: boolean;
+  },
+): Promise<WparsePublishResult> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/wparse/repos/${encodeURIComponent(name)}/publish`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        tag: input.tag,
+        gateway_ids: input.gatewayIds,
+        ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+        ...(input.verifyTag === false ? { verify_tag: false } : {}),
+      }),
+    },
+  );
+  return normalizeWparsePublishResult(raw);
+}

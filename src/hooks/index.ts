@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
@@ -25,9 +25,12 @@ import {
   fetchReleases,
   fetchUpgradePlan,
   fetchUpgradePlans,
+  fetchWparseRepos,
+  fetchWparseTags,
   getAdminApiToken,
   publishRelease,
   publishReleaseBatch,
+  publishWparseRelease,
   resolveCosPath,
   resolveGitHubRelease,
   retryUpgradePlan,
@@ -46,6 +49,7 @@ import {
   type ReleaseStatus,
   type RetryPlanCommand,
   type RotateGatewayLinkTokenCommand,
+  type WparsePublishResult,
 } from "../api";
 import {
   enqueueGatewayDiagnose,
@@ -696,5 +700,56 @@ export function useRestartGatewayRuntime() {
         queryKey: ["gateway-status", input.gatewayId],
       });
     },
+  });
+}
+
+// ── 规则 / 配置发布入口（wparse-rules / wparse-infra） ──
+//
+// tag 候选是读接口；发布是写接口。两者都**不回落示例数据**：候选列表为空就是没有候选，
+// 发布失败必须显式报错（与体检 / 重启同一取舍）。
+
+export function useWparseRepos() {
+  return useQuery({
+    queryKey: ["wparse-repos"],
+    queryFn: fetchWparseRepos,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * 某个入口的 tag 候选。
+ *
+ * `refresh()` 会让**下一次**请求带 `refresh=true` 绕过服务端缓存；平时走缓存（默认 60s）。
+ * 用 ref 而不是 queryKey：刷新按钮不应改变缓存身份，否则页面上会留下两套 tag 列表。
+ */
+export function useWparseTags(repoName: string, enabled = true) {
+  const refreshNext = useRef(false);
+  const query = useQuery({
+    queryKey: ["wparse-tags", repoName],
+    queryFn: () => {
+      const refresh = refreshNext.current;
+      refreshNext.current = false;
+      return fetchWparseTags(repoName, { refresh });
+    },
+    enabled: Boolean(repoName) && enabled,
+    staleTime: 30_000,
+  });
+  return {
+    ...query,
+    refresh: () => {
+      refreshNext.current = true;
+      return query.refetch();
+    },
+  };
+}
+
+export function usePublishWparseRelease(repoName: string) {
+  return useMutation({
+    mutationFn: (input: {
+      tag: string;
+      gatewayIds: string[];
+      reason?: string;
+      verifyTag?: boolean;
+    }): Promise<WparsePublishResult> => publishWparseRelease(repoName, input),
   });
 }
