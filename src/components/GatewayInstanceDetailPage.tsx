@@ -12,6 +12,7 @@ import {
   Badge,
   type BadgeTone,
   ErrorBanner,
+  bindingStatusLabel,
   formatDateTime,
   LoadingDots,
   PageShell,
@@ -117,11 +118,35 @@ export function GatewayInstanceDetailPage() {
               <p className={styles.instanceId}>
                 {instance.instanceId || "实例尚未上报 instance_id"}
               </p>
+              {instance.customerId ? (
+                <p className={styles.instanceId}>
+                  客户 {instance.customerId} ·{" "}
+                  {bindingStatusLabel(instance.bindingStatus)}
+                </p>
+              ) : null}
             </div>
             <Badge tone={lifecycleTone(instance.lifecycleState)}>
               {lifecycleLabel(instance.lifecycleState)}
             </Badge>
           </section>
+
+          {instance.bindingStatus === "drift" ? (
+            <div className={styles.feedback}>
+              <ErrorBanner>
+                <div>
+                  业务身份漂移：网关自报的 tenant_id 与中心绑定
+                  {instance.customerId ? `（${instance.customerId}）` : ""}
+                  不一致。请检查网关的 data-plane .env 是否被手工改过；重新绑定即可重新下发。
+                </div>
+                {instance.reportedTenantId ? (
+                  <div>网关自报：{instance.reportedTenantId}</div>
+                ) : null}
+                {instance.bindingLastError ? (
+                  <div>中心记录：{instance.bindingLastError}</div>
+                ) : null}
+              </ErrorBanner>
+            </div>
+          ) : null}
 
           <GatewayAccessPanel
             gatewayId={instance.gatewayId}
@@ -167,7 +192,18 @@ export function GatewayInstanceDetailPage() {
             </div>
           </section>
 
-          <GatewayCustomerBindPanel gatewayId={instance.gatewayId} />
+          <GatewayCustomerBindPanel
+            gatewayId={instance.gatewayId}
+            current={{
+              customerId: instance.customerId,
+              status: instance.bindingStatus,
+              revision: instance.bindingRevision,
+              appliedRevision: instance.bindingAppliedRevision,
+              appliedAt: instance.bindingAppliedAt,
+              lastError: instance.bindingLastError,
+              reportedTenantId: instance.reportedTenantId,
+            }}
+          />
         </div>
       ) : null}
     </PageShell>

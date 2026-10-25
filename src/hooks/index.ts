@@ -10,6 +10,7 @@ import {
   createUpgradePlan,
   fetchBackendVersion,
   fetchGatewayAgents,
+  fetchGatewayBindingHistory,
   fetchAgentHistory,
   fetchGatewayHistory,
   fetchGatewayInstances,
@@ -227,6 +228,18 @@ export function useGatewayLifecycle(gatewayId: string) {
   return useQuery({
     queryKey: ["gateway-lifecycle", gatewayId],
     queryFn: () => fetchGatewayLifecycle(gatewayId),
+    refetchInterval: enabled ? 10_000 : false,
+    enabled: enabled && Boolean(gatewayId),
+  });
+}
+
+/** 换绑审计：谁在什么时候把该网关绑到哪个客户（随实例列表一起刷新）。 */
+export function useGatewayBindingHistory(gatewayId: string) {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["gateway-binding-history", gatewayId],
+    queryFn: () => fetchGatewayBindingHistory(gatewayId),
     refetchInterval: enabled ? 10_000 : false,
     enabled: enabled && Boolean(gatewayId),
   });
@@ -464,9 +477,17 @@ export function useCreateGatewayInstance() {
 }
 
 export function useBindGatewayCustomer() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (command: BindGatewayCustomerCommand) =>
       bindGatewayCustomer(command),
+    // 绑定后列表/详情/审计都要立刻反映（否则得等 10s 轮询）。
+    onSuccess: (_binding, command) => {
+      void queryClient.invalidateQueries({ queryKey: ["gateway-instances"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["gateway-binding-history", command.gatewayId],
+      });
+    },
   });
 }
 

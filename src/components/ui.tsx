@@ -58,6 +58,21 @@ export function lifecycleLabel(state: string): string {
   }
 }
 
+/** 业务身份绑定状态的中文标签（中心只存原始 status；未知值原样回显）。 */
+export function bindingStatusLabel(
+  status: string | null | undefined,
+): string {
+  if (!status) return "未绑定";
+  return (
+    {
+      bound: "已下发（待生效）",
+      applied: "已生效",
+      drift: "身份漂移（网关上报不一致）",
+      failed: "生效失败",
+    }[status] ?? status
+  );
+}
+
 /** 实例生命周期状态对应的徽标色调。 */
 export function lifecycleTone(state: string): BadgeTone {
   switch (state) {

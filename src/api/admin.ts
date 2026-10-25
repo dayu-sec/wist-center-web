@@ -140,6 +140,16 @@ export interface GatewayInstance {
   initUrl?: string;
   /** 归档时刻；`null` = 未归档。归档是**标记**（默认视图隐藏、可恢复），不是删除。 */
   archivedAt: string | null;
+  /** 业务身份绑定（Center 字段名 `customer_id`；数据面叫 `tenant_id`）。未绑定 → null。 */
+  customerId?: string | null;
+  /** 绑定下发/生效状态：bound / applied / drift / failed；未绑定 → null。 */
+  bindingStatus?: string | null;
+  bindingRevision?: number | null;
+  bindingAppliedRevision?: number | null;
+  bindingAppliedAt?: string | null;
+  bindingLastError?: string | null;
+  /** 网关**自报**的 tenant_id（漂移时用来对照；权威值仍是 customerId）。 */
+  reportedTenantId?: string | null;
 }
 
 /** 网关实例安装指引（创建后交付给操作者）。 */
@@ -182,11 +192,27 @@ export interface LifecycleEvent {
   at: string;
 }
 
+/** 换绑审计事件：谁在什么时候把哪台网关绑到哪个客户（换绑带旧值）。 */
+export interface GatewayBindingAuditEvent {
+  gatewayId: string;
+  customerId: string;
+  previousCustomerId: string | null;
+  revision: number;
+  requestedBy: string;
+  at: string;
+}
+
 export interface GatewayCustomerBinding {
   gatewayId: string;
   customerId: string;
   status: string;
   boundAt: string;
+  /** 绑定版本（换绑递增；同客户重复绑定不递增）。 */
+  revision: number;
+  /** 网关已上报生效的版本；null = 未生效。 */
+  appliedRevision: number | null;
+  appliedAt: string | null;
+  lastError: string | null;
 }
 
 export interface GatewayInitialConfig {
@@ -195,6 +221,9 @@ export interface GatewayInitialConfig {
   protocolVersion: string;
   serverTlsRequired: boolean;
   enrollmentTokenId: string;
+  /** 首次接入时随配置带出的业务身份（Center 字段名 customer_id → 数据面 tenant_id）。 */
+  tenantId: string | null;
+  bindingRevision: number | null;
 }
 
 /**
@@ -722,6 +751,26 @@ function normalizeGatewayInstance(payload: any): GatewayInstance {
       const raw = pick(payload, "archived_at", "archivedAt");
       return raw === null || raw === undefined ? null : String(raw);
     })(),
+    // 业务身份绑定（后端列表视图已带出；旧后端不带 → null，页面不冒充已绑定）。
+    customerId: optionalString(pick(payload, "customer_id", "customerId")),
+    bindingStatus: emptyStringToNull(
+      optionalString(pick(payload, "binding_status", "bindingStatus")),
+    ),
+    bindingRevision: optionalNumber(
+      pick(payload, "binding_revision", "bindingRevision"),
+    ),
+    bindingAppliedRevision: optionalNumber(
+      pick(payload, "applied_revision", "appliedRevision"),
+    ),
+    bindingAppliedAt: optionalString(
+      pick(payload, "applied_at", "appliedAt"),
+    ),
+    bindingLastError: emptyStringToNull(
+      optionalString(pick(payload, "binding_last_error", "bindingLastError")),
+    ),
+    reportedTenantId: emptyStringToNull(
+      optionalString(pick(payload, "reported_tenant_id", "reportedTenantId")),
+    ),
   };
 }
 
@@ -742,6 +791,34 @@ function normalizeGatewayCustomerBinding(payload: any): GatewayCustomerBinding {
       pick(binding, "bound_at", "boundAt"),
       "binding.boundAt",
     ),
+    revision: optionalNumber(pick(binding, "revision")) ?? 0,
+    appliedRevision: optionalNumber(
+      pick(binding, "applied_revision", "appliedRevision"),
+    ),
+    appliedAt: optionalString(pick(binding, "applied_at", "appliedAt")),
+    lastError: optionalString(pick(binding, "last_error", "lastError")),
+  };
+}
+
+function normalizeGatewayBindingAuditEvent(
+  payload: any,
+): GatewayBindingAuditEvent {
+  return {
+    gatewayId: requiredString(
+      pick(payload, "gateway_id", "gatewayId"),
+      "bindingAudit.gatewayId",
+    ),
+    customerId: requiredString(
+      pick(payload, "customer_id", "customerId"),
+      "bindingAudit.customerId",
+    ),
+    previousCustomerId: optionalString(
+      pick(payload, "previous_customer_id", "previousCustomerId"),
+    ),
+    revision: optionalNumber(pick(payload, "revision")) ?? 0,
+    requestedBy:
+      optionalString(pick(payload, "requested_by", "requestedBy")) ?? "",
+    at: requiredString(pick(payload, "at"), "bindingAudit.at"),
   };
 }
 
@@ -766,6 +843,10 @@ function normalizeGatewayInitialConfig(payload: any): GatewayInitialConfig {
     enrollmentTokenId: requiredString(
       pick(config, "enrollment_token_id", "enrollmentTokenId"),
       "config.enrollmentTokenId",
+    ),
+    tenantId: optionalString(pick(config, "tenant_id", "tenantId")),
+    bindingRevision: optionalNumber(
+      pick(config, "binding_revision", "bindingRevision"),
     ),
   };
 }
@@ -810,8 +891,18 @@ function normalizeRolloutPhase(payload: any): RolloutPhase {
   };
 }
 
+/** 空串也归成 null（语义上的「没有」；避免「客户 acme · 未绑定」这类自相矛盾的行）。 */
+function emptyStringToNull(value: string | null): string | null {
+  return value === null || value === "" ? null : value;
+}
+
+/** 可空字符串：缺失 / `null` → null；否则原样。 */
 function optionalString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
+}
+
+function optionalNumber(value: unknown): number | null {
+  return typeof value === "number" ? value : null;
 }
 
 function normalizeRolloutPlan(payload: any): RolloutPlan {
@@ -1308,17 +1399,6 @@ function exampleGatewayInstance(
   };
 }
 
-function exampleBinding(
-  command: BindGatewayCustomerCommand,
-): GatewayCustomerBinding {
-  return {
-    gatewayId: command.gatewayId,
-    customerId: command.customerId,
-    status: "bound",
-    boundAt: new Date().toISOString(),
-  };
-}
-
 function exampleInitialConfig(
   command: GetGatewayInitialConfigCommand,
 ): GatewayInitialConfig {
@@ -1328,6 +1408,8 @@ function exampleInitialConfig(
     protocolVersion: "1.0",
     serverTlsRequired: true,
     enrollmentTokenId: "ent-example",
+    tenantId: null,
+    bindingRevision: null,
   };
 }
 
@@ -1549,6 +1631,19 @@ export async function fetchGatewayLifecycle(
   );
 }
 
+/** 换绑审计（升序）：谁在什么时候把该网关绑到哪个客户。 */
+export async function fetchGatewayBindingHistory(
+  gatewayId: string,
+): Promise<ExampleResult<GatewayBindingAuditEvent[]>> {
+  const path = `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/bindings`;
+  return fetchOrFallback(path, () => []).then(async (result) => {
+    if (result.source !== "real") return result;
+    const raw = result.data as any;
+    const items = Array.isArray(raw) ? raw : [];
+    return { ...result, data: items.map(normalizeGatewayBindingAuditEvent) };
+  });
+}
+
 export async function fetchGatewayStatus(
   gatewayId: string,
 ): Promise<ExampleResult<GatewayStatusView | null>> {
@@ -1611,24 +1706,18 @@ export async function rotateGatewayLinkToken(
 
 export async function bindGatewayCustomer(
   command: BindGatewayCustomerCommand,
-): Promise<ExampleResult<GatewayCustomerBinding>> {
-  return fetchOrFallback(
-    "/api/v1/admin/gateways/bind",
-    () => exampleBinding(command),
-    {
-      method: "POST",
-      body: JSON.stringify({
-        gateway_id: command.gatewayId,
-        customer_id: command.customerId,
-        requested_by: command.requestedBy,
-      }),
-    },
-  ).then(async (result) => {
-    if (result.source === "real") {
-      return { ...result, data: normalizeGatewayCustomerBinding(result.data) };
-    }
-    return result;
+): Promise<GatewayCustomerBinding> {
+  // **写操作不回落示例数据**：绑定失败（400 非法 ID / 404 无此网关 / 500）必须报错，
+  // 否则页面会把失败渲染成“绑定成功”的回执。同 `setGatewayArchived` 的口径。
+  const raw = await requestJson<any>("/api/v1/admin/gateways/bind", {
+    method: "POST",
+    body: JSON.stringify({
+      gateway_id: command.gatewayId,
+      customer_id: command.customerId,
+      requested_by: command.requestedBy,
+    }),
   });
+  return normalizeGatewayCustomerBinding(raw);
 }
 
 export async function fetchGatewayInitialConfig(

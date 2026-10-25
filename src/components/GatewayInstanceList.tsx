@@ -9,6 +9,7 @@ import {
 import {
   Badge,
   ErrorBanner,
+  bindingStatusLabel,
   formatRelativeTime,
   lifecycleLabel,
   lifecycleTone,
@@ -129,6 +130,18 @@ function InstanceGroup({
                     <div className={styles.instanceId}>
                       {instance.instanceId || "未上报实例"}
                     </div>
+                    {instance.customerId ? (
+                      <div
+                        className={
+                          instance.bindingStatus === "drift" && !archived
+                            ? styles.bindingAlert
+                            : styles.binding
+                        }
+                      >
+                        客户 {instance.customerId} ·{" "}
+                        {bindingStatusLabel(instance.bindingStatus)}
+                      </div>
+                    ) : null}
                     {lostContact ? (
                       <div className={styles.lastSeen}>
                         {runtime
@@ -146,6 +159,9 @@ function InstanceGroup({
                     ) : null}
                   </div>
                   <div className={styles.itemAside}>
+                    {instance.bindingStatus === "drift" && !archived ? (
+                      <Badge tone="red">身份漂移</Badge>
+                    ) : null}
                     {archived ? (
                       <Badge tone="gray">已归档</Badge>
                     ) : running && runtime !== undefined ? (

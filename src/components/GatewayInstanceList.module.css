@@ -192,6 +192,23 @@
   font-size: 12px;
 }
 
+/* 业务身份绑定：客户 + 下发/生效状态（与实例列表同排，弱化成一行说明）。 */
+.binding {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+/* 身份漂移（网关自报与中心权威值不一致）：需要处理，用危险色。 */
+.bindingAlert {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: var(--crit);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
 /* 掉线 / 从未上报时的最后上报时间，提示问题线索。 */
 .lastSeen {
   margin-top: 3px;
