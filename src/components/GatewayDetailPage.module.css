@@ -5,6 +5,48 @@
   margin: 0 auto;
 }
 
+/* tab 栏：与内容同宽；贴底部一条分隔线，选中项用主色 + 实线定位。 */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  outline: none;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -3px;
+}
+
+.tab:hover {
+  color: var(--text);
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+}
+
+.tab:focus-visible {
+  box-shadow: var(--ring);
+}
+
+.tabActive,
+.tabActive:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: transparent;
+}
+
 .backLink {
   display: inline-flex;
   align-items: center;

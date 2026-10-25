@@ -15,7 +15,13 @@ export function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<GatewayListPage />} />
+        {/* 网关详情分四个 tab（状态 / 绑定客户 / 运行时控制 / 升级）：
+            每个分区都是独立路由，刷新、分享链接、浏览器后退都能回到同一张页。 */}
         <Route path="/gateways/:gatewayId" element={<GatewayDetailPage />} />
+        <Route
+          path="/gateways/:gatewayId/:tab"
+          element={<GatewayDetailPage />}
+        />
         <Route path="/instance" element={<GatewayInstancePage />} />
         <Route
           path="/instance/:gatewayId"

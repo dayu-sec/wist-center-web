@@ -124,7 +124,7 @@ export function GatewayOpsPanel({ gatewayId }: { gatewayId: string }) {
 
   return (
     <SectionCard
-      title="运行时操作"
+      title="运行时控制"
       subtitle="远程体检 / 重启网关与 gwlinkd：命令经中心队列下发，网关轮询取走执行。"
     >
       <div className={styles.actions}>

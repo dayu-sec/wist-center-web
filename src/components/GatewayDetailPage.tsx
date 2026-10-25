@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import type { LifecycleEvent } from "../api";
 import {
   useAgentHistories,
@@ -22,6 +22,7 @@ import {
 } from "./ui";
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
 import { GatewayCustomerBindPanel } from "./GatewayCustomerBindPanel";
+import { gatewayTabs, resolveGatewayTab } from "./gatewayDetailTabs";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
 import { GatewayManualUpgradePanel } from "./GatewayManualUpgradePanel";
 import { GatewayOpsPanel } from "./GatewayOpsPanel";
@@ -31,6 +32,8 @@ import styles from "./GatewayDetailPage.module.css";
 
 export function GatewayDetailPage() {
   const { gatewayId = "" } = useParams();
+  const location = useLocation();
+  const tab = resolveGatewayTab(location.pathname);
   const { data: statusData, isLoading } = useGatewayStatus(gatewayId);
   const { data: agentsData } = useGatewayAgents(gatewayId);
   const agentIds = agentsData?.data?.map((agent) => agent.agentId) ?? [];
@@ -57,19 +60,39 @@ export function GatewayDetailPage() {
   const chain = lifecycleChain(lifecycle);
   const currentState =
     lifecycle.length > 0 ? lifecycle[lifecycle.length - 1].toState : null;
+  const base = `/gateways/${encodeURIComponent(gatewayId)}`;
 
   return (
     <PageShell
       title={gateway ? `网关 ${gateway.gatewayId}` : "网关详情"}
-      summary="查看该网关的状态与上报的 Agent 状态；重新安装所需的接入材料在「接入材料」页。"
+      summary="概览看状态；绑定客户确定这台网关的数据归属；运行时控制下发体检与重启；升级发版到这台机器。"
     >
       <Link to="/" className={styles.backLink}>
         ← 返回网关态势
       </Link>
 
+      {/* 分区（tab）而不是一页叠到底：绑定、体检/重启、升级都是"动作"，
+          与"看状态"混在一页里时，动手前得先滑过整张性能卡（现场反馈「运行时控制需要独立 tab」）。 */}
+      <nav className={styles.tabs} aria-label="网关详情分区">
+        {gatewayTabs(base).map((item) => (
+          <Link
+            key={item.key}
+            to={item.to}
+            className={
+              item.key === tab
+                ? `${styles.tab} ${styles.tabActive}`
+                : styles.tab
+            }
+            aria-current={item.key === tab ? "page" : undefined}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
       {isLoading && !gateway ? <LoadingDots /> : null}
 
-      {gateway ? (
+      {gateway && tab === "overview" ? (
         <section className={styles.section}>
           <div className={styles.card}>
             <div className={styles.cardHeader}>
@@ -113,9 +136,12 @@ export function GatewayDetailPage() {
                   </Metric>
                   <Metric label="gops">{gateway.gopsVersion ?? "—"}</Metric>
                   <Metric label="gx">{gateway.gxVersion ?? "—"}</Metric>
-                  <Metric label="gwlinkd">{gateway.gwlinkdVersion ?? "—"}</Metric>
+                  <Metric label="gwlinkd">
+                    {gateway.gwlinkdVersion ?? "—"}
+                  </Metric>
                   <Metric label="Agent 在线 / 离线" primary>
-                    {gateway.onlineAgents ?? "—"} / {gateway.offlineAgents ?? "—"}
+                    {gateway.onlineAgents ?? "—"} /{" "}
+                    {gateway.offlineAgents ?? "—"}
                     <span className={styles.metricSub}>
                       （共 {gateway.agentCount ?? "—"}）
                     </span>
@@ -167,7 +193,7 @@ export function GatewayDetailPage() {
 
       {/* 业务身份绑定：运行中的网关只从这个页面进来（列表点进去就是 /gateways/:id），
           所以绑客户必须在这里可见 —— 只在「接入材料」页有等于没有。 */}
-      {gateway ? (
+      {gateway && tab === "binding" ? (
         <section className={styles.section}>
           <GatewayCustomerBindPanel
             gatewayId={gateway.gatewayId}
@@ -184,13 +210,13 @@ export function GatewayDetailPage() {
         </section>
       ) : null}
 
-      {gateway ? (
+      {gateway && tab === "runtime" ? (
         <section className={styles.section}>
           <GatewayOpsPanel gatewayId={gateway.gatewayId} />
         </section>
       ) : null}
 
-      {gateway ? (
+      {gateway && tab === "upgrade" ? (
         <section className={styles.section}>
           <GatewayManualUpgradePanel
             gatewayId={gateway.gatewayId}
@@ -205,7 +231,7 @@ export function GatewayDetailPage() {
         **还没接入**的机器（或重装）用的。以前这里是一整张卡片讲「不需要安装材料」，占掉半屏却什么
         也没提供（现场反馈「这个展示也有问题」）—— 现在收成一行提示，只留「接入材料」这个入口。
       */}
-      {gateway ? (
+      {gateway && tab === "overview" ? (
         <p className={styles.installedNote}>
           <span className={styles.installedIcon} aria-hidden="true">
             ✓
@@ -222,95 +248,104 @@ export function GatewayDetailPage() {
         </p>
       ) : null}
 
-      <section className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <div className={styles.sectionTitle}>生命周期过程</div>
-          <span className={styles.sectionMeta}>{lifecycle.length} 次转变</span>
-        </div>
-        {chain.length === 0 ? (
-          <div className={styles.empty}>尚无生命周期记录。</div>
-        ) : (
-          /*
+      {tab === "overview" ? (
+        <>
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionTitle}>生命周期过程</div>
+              <span className={styles.sectionMeta}>
+                {lifecycle.length} 次转变
+              </span>
+            </div>
+            {chain.length === 0 ? (
+              <div className={styles.empty}>尚无生命周期记录。</div>
+            ) : (
+              /*
             状态迁移的经典表达：**节点是状态、不是转变记录**，**横向**排开（从左到右就是时间顺序）。
             每个状态一列：圆点在一条横轨上，下面状态名，再下面「什么时候到这个状态」；末列是当前态。
           */
-          <ol
-            className={styles.chain}
-            style={{ "--steps": chain.length } as React.CSSProperties}
-          >
-            {chain.map((step, index) => {
-              const isCurrent = index === chain.length - 1;
-              return (
-                <li
-                  key={`${step.state ?? "created"}-${index}`}
-                  className={
-                    isCurrent
-                      ? `${styles.chainStep} ${styles.chainStepCurrent}`
-                      : styles.chainStep
-                  }
-                >
-                  <span
-                    className={styles.chainDot}
-                    data-tone={lifecycleTone(step.state ?? "")}
-                    aria-hidden="true"
-                  />
-                  <span className={styles.chainLabel}>
-                    {step.label}
-                    {isCurrent ? (
-                      <span className={styles.chainNow}>当前</span>
-                    ) : null}
-                  </span>
-                  <span className={styles.chainTime}>
-                    {step.arrivedAt ? formatRelativeTime(step.arrivedAt) : "—"}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </section>
+              <ol
+                className={styles.chain}
+                style={{ "--steps": chain.length } as React.CSSProperties}
+              >
+                {chain.map((step, index) => {
+                  const isCurrent = index === chain.length - 1;
+                  return (
+                    <li
+                      key={`${step.state ?? "created"}-${index}`}
+                      className={
+                        isCurrent
+                          ? `${styles.chainStep} ${styles.chainStepCurrent}`
+                          : styles.chainStep
+                      }
+                    >
+                      <span
+                        className={styles.chainDot}
+                        data-tone={lifecycleTone(step.state ?? "")}
+                        aria-hidden="true"
+                      />
+                      <span className={styles.chainLabel}>
+                        {step.label}
+                        {isCurrent ? (
+                          <span className={styles.chainNow}>当前</span>
+                        ) : null}
+                      </span>
+                      <span className={styles.chainTime}>
+                        {step.arrivedAt
+                          ? formatRelativeTime(step.arrivedAt)
+                          : "—"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </section>
 
-      <section className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <div className={styles.sectionTitle}>Agent 状态</div>
-          <span className={styles.sectionMeta}>{agents.length} 个</span>
-        </div>
-        {agents.length === 0 ? (
-          <div className={styles.empty}>该网关尚未上报 Agent 状态。</div>
-        ) : (
-          <div className={styles.agentGrid}>
-            {agents.map((agent) => (
-              <div key={agent.agentId} className={styles.agentCard}>
-                <div className={styles.agentHeader}>
-                  <div className={styles.agentId}>{agent.agentId}</div>
-                  <GatewayOnlineStatusBadge value={agent.status} />
-                </div>
-                <div className={styles.agentMeta}>
-                  <span>版本 {agent.version}</span>
-                  <GatewayHealthBadge value={agent.health} />
-                </div>
-                <div className={styles.agentMetrics}>
-                  <span>内存 {formatBytes(agent.memoryBytes)}</span>
-                  <span>CPU {formatPercent(agent.cpuPercent)}</span>
-                  <span>时延 {agent.adminLatencyMs ?? "—"}ms</span>
-                </div>
-                <GatewayHistoryChart
-                  history={agentHistoriesData?.[agent.agentId]?.data}
-                  source={agentHistoriesData?.[agent.agentId]?.source}
-                  compact
-                  title="Agent 最近 1 小时"
-                />
-                <div className={styles.agentLastSeen}>
-                  {formatRelativeTime(agent.lastSeenAt)}
-                </div>
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionTitle}>Agent 状态</div>
+              <span className={styles.sectionMeta}>{agents.length} 个</span>
+            </div>
+            {agents.length === 0 ? (
+              <div className={styles.empty}>该网关尚未上报 Agent 状态。</div>
+            ) : (
+              <div className={styles.agentGrid}>
+                {agents.map((agent) => (
+                  <div key={agent.agentId} className={styles.agentCard}>
+                    <div className={styles.agentHeader}>
+                      <div className={styles.agentId}>{agent.agentId}</div>
+                      <GatewayOnlineStatusBadge value={agent.status} />
+                    </div>
+                    <div className={styles.agentMeta}>
+                      <span>版本 {agent.version}</span>
+                      <GatewayHealthBadge value={agent.health} />
+                    </div>
+                    <div className={styles.agentMetrics}>
+                      <span>内存 {formatBytes(agent.memoryBytes)}</span>
+                      <span>CPU {formatPercent(agent.cpuPercent)}</span>
+                      <span>时延 {agent.adminLatencyMs ?? "—"}ms</span>
+                    </div>
+                    <GatewayHistoryChart
+                      history={agentHistoriesData?.[agent.agentId]?.data}
+                      source={agentHistoriesData?.[agent.agentId]?.source}
+                      compact
+                      title="Agent 最近 1 小时"
+                    />
+                    <div className={styles.agentLastSeen}>
+                      {formatRelativeTime(agent.lastSeenAt)}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            )}
+          </section>
+        </>
+      ) : null}
     </PageShell>
   );
 }
+
 
 interface ChainStep {
   /** 生命周期状态；`null` = 创建（还没进入任何状态）。 */
@@ -346,7 +381,8 @@ function lifecycleChain(events: LifecycleEvent[]): ChainStep[] {
   }
   // 相邻同状态（例如某次转变的 from 与上一次的 to 相同以外的重复）只留最后一个。
   return steps.filter(
-    (step, index) => index === steps.length - 1 || step.state !== steps[index + 1].state,
+    (step, index) =>
+      index === steps.length - 1 || step.state !== steps[index + 1].state,
   );
 }
 
