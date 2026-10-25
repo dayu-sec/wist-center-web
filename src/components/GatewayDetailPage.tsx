@@ -4,6 +4,7 @@ import {
   useAgentHistories,
   useGatewayAgents,
   useGatewayHistory,
+  useGatewayInstances,
   useGatewayLifecycle,
   useGatewayStatus,
   useGatewayUptimes,
@@ -20,6 +21,7 @@ import {
   PageShell,
 } from "./ui";
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
+import { GatewayCustomerBindPanel } from "./GatewayCustomerBindPanel";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
 import { GatewayManualUpgradePanel } from "./GatewayManualUpgradePanel";
 import { GatewayOpsPanel } from "./GatewayOpsPanel";
@@ -38,6 +40,11 @@ export function GatewayDetailPage() {
   const { data: uptimesData } = useGatewayUptimes([gatewayId]);
   const { data: lifecycleData } = useGatewayLifecycle(gatewayId);
   const lifecycle = lifecycleData?.data ?? [];
+  // 绑定事实在**实例视图**里（状态接口不带绑定字段）：同一份列表也在总览页 10s 轮询。
+  const { data: instancesData } = useGatewayInstances();
+  const instance = instancesData?.data.find(
+    (item) => item.gatewayId === gatewayId,
+  );
 
   const gateway = statusData?.data ?? null;
   const agents = agentsData?.data ?? [];
@@ -155,6 +162,25 @@ export function GatewayDetailPage() {
               />
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {/* 业务身份绑定：运行中的网关只从这个页面进来（列表点进去就是 /gateways/:id），
+          所以绑客户必须在这里可见 —— 只在「接入材料」页有等于没有。 */}
+      {gateway ? (
+        <section className={styles.section}>
+          <GatewayCustomerBindPanel
+            gatewayId={gateway.gatewayId}
+            current={{
+              customerId: instance?.customerId,
+              status: instance?.bindingStatus,
+              revision: instance?.bindingRevision,
+              appliedRevision: instance?.bindingAppliedRevision,
+              appliedAt: instance?.bindingAppliedAt,
+              lastError: instance?.bindingLastError,
+              reportedTenantId: instance?.reportedTenantId,
+            }}
+          />
         </section>
       ) : null}
 
