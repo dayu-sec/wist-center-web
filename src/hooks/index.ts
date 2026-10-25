@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueries,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
   ApiError,
@@ -10,6 +15,7 @@ import {
   createUpgradePlan,
   fetchBackendVersion,
   fetchGatewayAgents,
+  fetchGatewayBindCommand,
   fetchGatewayBindingHistory,
   fetchAgentHistory,
   fetchGatewayHistory,
@@ -245,6 +251,27 @@ export function useGatewayBindingHistory(gatewayId: string) {
   });
 }
 
+/**
+ * 最近一次绑定命令（下发记录）。
+ *
+ * 轮询口径与体检/重启一致：命令在飞（pending / leased）时每 1.5s 追一次，
+ * 到终态就停；绑定是异步的，停太早会让人以为“一直不生效”。
+ */
+export function useGatewayBindCommand(gatewayId: string) {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["gateway-bind-command", gatewayId],
+    queryFn: () => fetchGatewayBindCommand(gatewayId),
+    enabled: enabled && Boolean(gatewayId),
+    refetchInterval: (query) => {
+      const state = query.state.data?.data?.state;
+      if (!state) return false;
+      return state === "pending" || state === "leased" ? 1500 : false;
+    },
+  });
+}
+
 /** 批量查询多网关下的 Agent 状态（版本发布页展示各 Agent 当前版本）。 */
 export function useGatewayAgentsForAll(gatewayIds: string[]) {
   useAuthVersion();
@@ -399,7 +426,11 @@ export function useAllReleases(components: readonly string[]): {
     if (!result) return;
     if (result.source === "example") source = "example";
     for (const release of result.data) {
-      records.push({ ...release, component: release.component || component, source: result.source });
+      records.push({
+        ...release,
+        component: release.component || component,
+        source: result.source,
+      });
     }
   });
   records.sort(
@@ -486,6 +517,10 @@ export function useBindGatewayCustomer() {
       void queryClient.invalidateQueries({ queryKey: ["gateway-instances"] });
       void queryClient.invalidateQueries({
         queryKey: ["gateway-binding-history", command.gatewayId],
+      });
+      // 刚下发的那条命令要马上出现在「下发记录」里（pending → 会被轮询追到终态）。
+      void queryClient.invalidateQueries({
+        queryKey: ["gateway-bind-command", command.gatewayId],
       });
     },
   });

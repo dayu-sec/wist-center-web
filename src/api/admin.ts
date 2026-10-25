@@ -762,9 +762,7 @@ function normalizeGatewayInstance(payload: any): GatewayInstance {
     bindingAppliedRevision: optionalNumber(
       pick(payload, "applied_revision", "appliedRevision"),
     ),
-    bindingAppliedAt: optionalString(
-      pick(payload, "applied_at", "appliedAt"),
-    ),
+    bindingAppliedAt: optionalString(pick(payload, "applied_at", "appliedAt")),
     bindingLastError: emptyStringToNull(
       optionalString(pick(payload, "binding_last_error", "bindingLastError")),
     ),
@@ -1631,6 +1629,60 @@ export async function fetchGatewayLifecycle(
   );
 }
 
+/** 一次 `bind-tenant` 命令的可见记录（下发记录）。`null` = 从未下发。 */
+export interface GatewayBindCommand {
+  commandId: string;
+  /** 队列状态：pending / leased / done / failed / expired。 */
+  state: string;
+  responseStatus: number | null;
+  /** 网关回执：数据面是否真的生效（缺省 = 没回执 / 老网关没这个字段）。 */
+  wparseApplied: boolean | null;
+  /** 网关回执的 apply：`not_configured` / `unchanged`…。 */
+  apply: string | null;
+  /** 未生效的原因。 */
+  reason: string | null;
+  error: string | null;
+  requestedAt: string;
+  updatedAt: string;
+}
+
+function normalizeGatewayBindCommand(raw: any): GatewayBindCommand {
+  return {
+    commandId: requiredString(raw?.command_id, "command_id"),
+    state: requiredString(raw?.state, "state"),
+    responseStatus:
+      typeof raw?.response_status === "number" ? raw.response_status : null,
+    wparseApplied:
+      typeof raw?.wparse_applied === "boolean" ? raw.wparse_applied : null,
+    apply: typeof raw?.apply === "string" ? raw.apply : null,
+    reason: typeof raw?.reason === "string" ? raw.reason : null,
+    error: typeof raw?.error === "string" ? raw.error : null,
+    requestedAt: requiredString(raw?.requested_at, "requested_at"),
+    updatedAt: requiredString(raw?.updated_at, "updated_at"),
+  };
+}
+
+/**
+ * 最近一次绑定命令（下发记录）。
+ *
+ * 绑定是**远程命令**：POST /bind 的同步返回只有绑定事实，命令到底有没有被取走、
+ * 回执是什么、数据面是否真生效，只能从这里看。旧中心没有这个路由 → 回落成“没有记录”，
+ * 页面要能分清“没下发过”与“中心版本较旧”。
+ */
+export async function fetchGatewayBindCommand(
+  gatewayId: string,
+): Promise<ExampleResult<GatewayBindCommand | null>> {
+  const path = `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/bind-command`;
+  return fetchOrFallback(path, () => null).then(async (result) => {
+    if (result.source !== "real") return result;
+    const raw = (result.data as any)?.command;
+    return {
+      ...result,
+      data: raw ? normalizeGatewayBindCommand(raw) : null,
+    };
+  });
+}
+
 /** 换绑审计（升序）：谁在什么时候把该网关绑到哪个客户。 */
 export async function fetchGatewayBindingHistory(
   gatewayId: string,
@@ -1925,7 +1977,8 @@ export async function fetchPackageLatest(
   return {
     component: typeof raw?.component === "string" ? raw.component : component,
     source: raw?.source === "cos" ? "cos" : "github",
-    baseVersion: typeof raw?.base_version === "string" ? raw.base_version : null,
+    baseVersion:
+      typeof raw?.base_version === "string" ? raw.base_version : null,
     version: String(raw?.version ?? ""),
     imported: Boolean(raw?.imported),
     upToDate: Boolean(raw?.up_to_date),
@@ -2388,8 +2441,7 @@ function normalizeWparseRepo(raw: any): WparseRepo {
     repo: requiredString(raw?.repo, "repo"),
     tagSource: typeof raw?.tag_source === "string" ? raw.tag_source : "manual",
     tokenConfigured: raw?.token_configured === true,
-    tagsLimit:
-      typeof raw?.tags_limit === "number" ? raw.tags_limit : 100,
+    tagsLimit: typeof raw?.tags_limit === "number" ? raw.tags_limit : 100,
   };
 }
 

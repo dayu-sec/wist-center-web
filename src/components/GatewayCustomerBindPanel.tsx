@@ -1,6 +1,11 @@
 import type { FormEvent } from "react";
-import { useBindGatewayCustomer, useGatewayBindingHistory } from "../hooks";
 import {
+  useBindGatewayCustomer,
+  useGatewayBindCommand,
+  useGatewayBindingHistory,
+} from "../hooks";
+import {
+  Badge,
   ErrorBanner,
   FormField,
   FormStack,
@@ -12,6 +17,7 @@ import {
   bindingStatusLabel,
   formatDateTime,
 } from "./ui";
+import { commandStateLabel, commandStateTone } from "./gatewayOps";
 import styles from "./GatewayCustomerBindPanel.module.css";
 
 /** 详情页已有的**当前**绑定事实（来自实例列表视图，10s 轮询）。 */
@@ -42,6 +48,12 @@ export function GatewayCustomerBindPanel({
   // 旧中心没有这个路由：`fetchOrFallback` 回落成示例数据（空数组）—— 要说清是「不支持」，
   // 不能让人以为「从来没绑过」。
   const historyUnsupported = history.data?.source === "example";
+  // 下发记录：绑定是**远程命令**，POST 只回绑定事实；命令有没有被取走、回执是什么、
+  // 数据面真的生效没，只在这里能看（在飞时 1.5s 追一次，到终态停）。
+  const bindCommand = useGatewayBindCommand(currentGatewayId);
+  const lastCommand = bindCommand.data?.data ?? null;
+  // 旧中心没有这个路由：`fetchOrFallback` 回落成“没有记录”—— 要和“从未下发”分开说。
+  const commandUnsupported = bindCommand.data?.source === "example";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,7 +76,8 @@ export function GatewayCustomerBindPanel({
       ["绑定版本", current.revision ? String(current.revision) : "—"],
       [
         "生效版本",
-        current.appliedRevision === null || current.appliedRevision === undefined
+        current.appliedRevision === null ||
+        current.appliedRevision === undefined
           ? "未生效"
           : String(current.appliedRevision),
       ],
@@ -137,6 +150,70 @@ export function GatewayCustomerBindPanel({
       ) : null}
       {currentGatewayId ? (
         <div className={styles.history}>
+          <div className={styles.historyTitle}>下发记录</div>
+          <div className={styles.historyHint}>
+            绑定是异步远程命令：中心入队 → 网关轮询取走 → 落地 <code>.env</code>{" "}
+            并重启 wparse → 回执。 下面是最新一条 <code>bind-tenant</code>{" "}
+            命令的真实状态（在飞时自动刷新）。
+          </div>
+          {bindCommand.isLoading ? <LoadingDots /> : null}
+          {bindCommand.error ? (
+            <ErrorBanner>
+              下发记录加载失败：{String(bindCommand.error)}
+            </ErrorBanner>
+          ) : null}
+          {commandUnsupported ? (
+            <p className={styles.historyEmpty}>
+              中心版本较旧，不提供下发记录（只有绑定状态）。
+            </p>
+          ) : null}
+          {!bindCommand.isLoading && !commandUnsupported && !lastCommand ? (
+            <p className={styles.historyEmpty}>
+              还没有下发记录（绑定后自动入队一条 `bind-tenant`）。
+            </p>
+          ) : null}
+          {lastCommand ? (
+            <ReceiptCard
+              title="最近一次下发"
+              fields={[
+                ["命令", <code key="id">{lastCommand.commandId}</code>],
+                [
+                  "队列状态",
+                  <Badge key="state" tone={commandStateTone(lastCommand.state)}>
+                    {commandStateLabel(lastCommand.state)}
+                  </Badge>,
+                ],
+                [
+                  "回执状态",
+                  lastCommand.responseStatus === null
+                    ? "—"
+                    : String(lastCommand.responseStatus),
+                ],
+                [
+                  // 队列 done 不等于数据面生效：`.env` 写了但没有生效命令时也会 done。
+                  "数据面",
+                  lastCommand.wparseApplied === true
+                    ? "已生效（wparse 已重启）"
+                    : lastCommand.wparseApplied === false
+                      ? "未生效"
+                      : "—",
+                ],
+                ...(lastCommand.reason
+                  ? [["未生效原因", lastCommand.reason] as [string, string]]
+                  : []),
+                ...(lastCommand.error
+                  ? [["网关错误", lastCommand.error] as [string, string]]
+                  : []),
+                ["下发时间", formatDateTime(lastCommand.requestedAt)],
+                ["最近更新", formatDateTime(lastCommand.updatedAt)],
+              ]}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      {currentGatewayId ? (
+        <div className={styles.history}>
           <div className={styles.historyTitle}>换绑审计</div>
           <div className={styles.historyHint}>
             绑定表只保留最新值；这里按时间倒序展示“谁在什么时候把该网关绑到哪个客户”。
@@ -144,9 +221,7 @@ export function GatewayCustomerBindPanel({
           </div>
           {history.isLoading ? <LoadingDots /> : null}
           {history.error ? (
-            <ErrorBanner>
-              换绑审计加载失败：{String(history.error)}
-            </ErrorBanner>
+            <ErrorBanner>换绑审计加载失败：{String(history.error)}</ErrorBanner>
           ) : null}
           {historyUnsupported ? (
             <p className={styles.historyEmpty}>
@@ -177,7 +252,9 @@ export function GatewayCustomerBindPanel({
                   <span className={styles.previous}>
                     v{event.revision} · {event.requestedBy || "未知操作者"}
                   </span>
-                  <span className={styles.meta}>{formatDateTime(event.at)}</span>
+                  <span className={styles.meta}>
+                    {formatDateTime(event.at)}
+                  </span>
                 </li>
               ))}
             </ul>
