@@ -199,7 +199,8 @@
 }
 
 /* 轮询卡住（超过 30 秒没更新）：不能再绿着宣称「自动刷新 5s」。 */
-.pillStale {
+.pillStale,
+.pillExample {
   border-color: var(--warn-border);
   background: var(--warn-soft);
   color: var(--warn);

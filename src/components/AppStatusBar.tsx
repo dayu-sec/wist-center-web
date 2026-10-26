@@ -105,7 +105,7 @@ export function AppStatusBar() {
 
   // 鉴权问题优先展示：没 token / token 被拒是「为什么没数据」的头号原因。
   const authIssue = !token || authError;
-  const idle = authIssue || exampleFallbacks > 0;
+  const exampleData = !authIssue && exampleFallbacks > 0;
   const statusText = !token
     ? "未设置 Admin Token"
     : authError
@@ -141,7 +141,9 @@ export function AppStatusBar() {
   return (
     <div className={styles.bar}>
       <nav className={styles.crumbs} aria-label="面包屑">
-        <span className={styles.crumbRoot}>{SECTION_LABELS[route.section]}</span>
+        <span className={styles.crumbRoot}>
+          {SECTION_LABELS[route.section]}
+        </span>
         {route.crumbs.map((crumb, index) => (
           <span key={crumb} className={styles.crumbGroup}>
             <span className={styles.sep} aria-hidden="true">
@@ -209,11 +211,13 @@ export function AppStatusBar() {
         */}
         <span
           className={
-            idle
+            authIssue
               ? `${styles.pill} ${styles.pillIdle}`
-              : syncStale
-                ? `${styles.pill} ${styles.pillStale}`
-                : `${styles.pill} ${styles.pillLive}`
+              : exampleData
+                ? `${styles.pill} ${styles.pillExample}`
+                : syncStale
+                  ? `${styles.pill} ${styles.pillStale}`
+                  : `${styles.pill} ${styles.pillLive}`
           }
           title={statusTitle}
         >

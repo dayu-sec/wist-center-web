@@ -180,7 +180,7 @@
 .checkboxRow input {
   width: 15px;
   height: 15px;
-  accent-color: var(--accent, #3b82f6);
+  accent-color: var(--accent);
 }
 
 .formError {
