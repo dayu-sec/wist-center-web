@@ -122,7 +122,9 @@
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .resolveButton:hover:not(:disabled) {
@@ -194,7 +196,10 @@
 
 .variantRow {
   display: grid;
-  grid-template-columns: minmax(140px, 0.7fr) minmax(260px, 1.5fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(140px, 0.7fr) minmax(260px, 1.5fr) minmax(
+      220px,
+      1fr
+    );
   align-items: start;
   gap: 12px;
   padding: 12px;
@@ -230,6 +235,113 @@
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
   margin-top: 14px;
+}
+
+/* 当前提交的下载任务：状态 + 任务 id + 一句进度（比只转圈更诚实）。 */
+.jobStatus {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.jobStatusHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.jobId {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jobHint {
+  margin: 7px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* 下载任务列表：一行一条，失败原因跟在同一行末尾。 */
+.jobList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jobItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.jobMeta {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.jobError {
+  flex: 1 1 100%;
+  min-width: 0;
+  color: var(--crit);
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* 「取消」只对排队中的任务出现：文字按钮，不与状态徽标抢视觉。 */
+.jobCancel {
+  flex-shrink: 0;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.jobCancel:hover:not(:disabled) {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.jobCancel:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-crit);
+}
+
+.jobCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.jobNotice {
+  margin: 6px 0 0;
+  color: var(--crit);
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .history {

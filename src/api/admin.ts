@@ -1822,19 +1822,102 @@ function exampleReleases(component: string): ReleasePackage[] {
 }
 
 /**
- * 发布/提交某组件的新版本（中心把制品镜像到本地并落库）。
+ * 一条**远程包下载任务**（发布端点只入队，worker 后台取包 / 校验 / 镜像 / 落库）。
  *
- * **刻意不回落示例**：这是**写操作**，示例回执会把「其实没提交成功」伪装成一张成功卡
- * （曾把一个 422 掩盖成回执）—— 与 `rotateGatewayLinkToken` 同一取舍。真实失败就让它冒出来。
+ * `state`：`queued`（排队）→ `running`（取包中）→ `succeeded` / `failed`；
+ * 成功后 `package` 是发布出来的安装包（与旧同步接口回执同形），失败带 `errorCode` / `errorDetail`。
+ */
+export interface ReleaseDownloadJob {
+  jobId: string;
+  component: string;
+  /** `publish` | `publish_batch`。 */
+  kind: string;
+  state: string;
+  requestedBy: string;
+  declaredVersion: string | null;
+  artifacts: { artifactUrl: string; expectedSha256: string }[];
+  /** 已完成的制品数（多平台任务显示 2/3；单制品 0/1）。 */
+  completedArtifacts: number;
+  /** 当前步骤的可读说明（如 `取包中（2/3）`）；终态后保留最后一步。 */
+  message: string | null;
+  package: ReleasePackage | null;
+  errorCode: string | null;
+  /** 失败对应的 HTTP 状态（兼容旧同步调用时折回同一状态码）。 */
+  errorStatus: number | null;
+  errorDetail: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+/**
+ * 任务是否已到**明确终态**：`succeeded` / `failed`。
+ *
+ * 轮询要用它而不是「是否 queued/running」：老/新中心多一个中间态（例如以后加 `retrying`）时，
+ * 按「非终态继续问」才不会把还在跑的任务提前当成结束了。
+ */
+export function isReleaseJobTerminal(state: string): boolean {
+  return state === "succeeded" || state === "failed" || state === "canceled";
+}
+
+function normalizeReleaseJob(payload: any): ReleaseDownloadJob {
+  const artifacts = Array.isArray(payload.artifacts) ? payload.artifacts : [];
+  return {
+    jobId: requiredString(pick(payload, "job_id", "jobId"), "releaseJob.jobId"),
+    component: requiredString(payload.component, "releaseJob.component"),
+    kind: requiredString(payload.kind, "releaseJob.kind"),
+    state: requiredString(payload.state, "releaseJob.state"),
+    requestedBy:
+      optionalString(pick(payload, "requested_by", "requestedBy")) ?? "",
+    declaredVersion: optionalString(
+      pick(payload, "declared_version", "declaredVersion"),
+    ),
+    artifacts: artifacts.map((artifact: any) => ({
+      artifactUrl:
+        optionalString(pick(artifact, "artifact_url", "artifactUrl")) ?? "",
+      expectedSha256:
+        optionalString(pick(artifact, "expected_sha256", "expectedSha256")) ??
+        "",
+    })),
+    completedArtifacts:
+      optionalNumber(
+        pick(payload, "completed_artifacts", "completedArtifacts"),
+      ) ?? 0,
+    message: optionalString(payload.message),
+    package:
+      pick(payload, "package") == null
+        ? null
+        : normalizePackage(pick(payload, "package")),
+    errorCode: optionalString(pick(payload, "error_code", "errorCode")),
+    errorStatus: optionalNumber(pick(payload, "error_status", "errorStatus")),
+    errorDetail: optionalString(pick(payload, "error_detail", "errorDetail")),
+    createdAt: requiredString(
+      pick(payload, "created_at", "createdAt"),
+      "releaseJob.createdAt",
+    ),
+    startedAt: optionalString(pick(payload, "started_at", "startedAt")),
+    finishedAt: optionalString(pick(payload, "finished_at", "finishedAt")),
+  };
+}
+
+/**
+ * 发布/提交某组件的新版本：**只入队**，返回下载任务（`202 Accepted`）。
+ *
+ * `Prefer: respond-async` 让中心不等下载；调用方按 `jobId` 轮询（页面用
+ * `useReleaseJobs` / `useReleaseJob`）。旧中心不支持异步时会直接返回安装包（200）——
+ * 这里把它包成一条已完成的伪任务，页面不用分叉两个形状。
+ *
+ * **刻意不回落示例**：写操作，示例回执会把「其实没提交成功」伪装成一张成功卡。
  */
 export async function publishRelease(
   component: string,
   command: PublishReleaseCommand,
-): Promise<ExampleResult<ReleasePackage>> {
+): Promise<ExampleResult<ReleaseDownloadJob>> {
   const raw = await requestJson<any>(
     `/api/v1/admin/releases/${encodeURIComponent(component)}`,
     {
       method: "POST",
+      headers: { prefer: "respond-async" },
       body: JSON.stringify({
         version: command.version?.trim() || undefined,
         artifact_url: command.artifactUrl,
@@ -1843,7 +1926,72 @@ export async function publishRelease(
       }),
     },
   );
-  return { source: "real", data: normalizePackage(raw) };
+  return { source: "real", data: normalizePublishReceipt(component, raw) };
+}
+
+/** 旧中心（同步 200）回安装包；新中心（202）回任务。统一成任务形状。 */
+function normalizePublishReceipt(
+  component: string,
+  raw: any,
+): ReleaseDownloadJob {
+  if (raw && typeof raw === "object" && ("job_id" in raw || "jobId" in raw)) {
+    return normalizeReleaseJob(raw);
+  }
+  const now = new Date().toISOString();
+  return {
+    jobId: `legacy-${now}`,
+    component,
+    kind: "publish",
+    state: "succeeded",
+    requestedBy: "",
+    declaredVersion: null,
+    artifacts: [],
+    completedArtifacts: 0,
+    message: null,
+    package: normalizePackage(raw),
+    errorCode: null,
+    errorStatus: null,
+    errorDetail: null,
+    createdAt: now,
+    startedAt: null,
+    finishedAt: now,
+  };
+}
+
+/** 查一条下载任务（`GET /api/v1/admin/release-jobs/{job_id}`）。 */
+export async function fetchReleaseJob(
+  jobId: string,
+): Promise<ReleaseDownloadJob> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/release-jobs/${encodeURIComponent(jobId)}`,
+  );
+  return normalizeReleaseJob(raw);
+}
+
+/** 最近的下载任务（新→旧）；`component` 给了就只看该组件。 */
+export async function fetchReleaseJobs(
+  component?: string,
+  limit = 20,
+): Promise<ReleaseDownloadJob[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (component) params.set("component", component);
+  const raw = await requestJson<any>(
+    `/api/v1/admin/release-jobs?${params.toString()}`,
+  );
+  const items = Array.isArray(raw) ? raw : [];
+  return items.map(normalizeReleaseJob);
+}
+
+/**
+ * 取消一条**排队中**的任务（`POST /api/v1/admin/jobs/{job_id}/cancel`）。
+ *
+ * 只受理 `queued`：已开始 / 已终结的任务中心回 409。取消后不会再执行，也不会产生发布记录。
+ * **刻意不回落示例**：写操作，失败要冒出来。
+ */
+export async function cancelJob(jobId: string): Promise<void> {
+  await requestJson(`/api/v1/admin/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+  });
 }
 
 /** 托管状态取值：`published`（在用）/ `expired`（已过期）。 */
@@ -1879,18 +2027,23 @@ export interface PublishReleaseBatchCommand {
 
 /**
  * 一次录入**同一版本**的多个平台制品（galaxy-ops / galaxy-flow 必须 macOS-ARM / Linux-ARM /
- * Linux-X86 三平台齐备）。中心先全部下载校验，任一不合格即整体拒绝。
+ * Linux-X86 三平台齐备）。
+ *
+ * **只入队**（`202 Accepted`）：中心不再在一次请求里串行下载三个平台，而是把整批交给下载队列；
+ * worker 先全部下载 + 校验 + 解析身份，任一不合格即整体失败（不落任何发布记录），
+ * 全部通过后再逐个镜像落库。调用方按 `jobId` 轮询。
  *
  * **刻意不回落示例**：写操作，失败要冒出来（与 `publishRelease` 同取舍）。
  */
 export async function publishReleaseBatch(
   component: string,
   command: PublishReleaseBatchCommand,
-): Promise<ExampleResult<ReleasePackage>> {
+): Promise<ExampleResult<ReleaseDownloadJob>> {
   const raw = await requestJson<any>(
     `/api/v1/admin/releases/${encodeURIComponent(component)}/batch`,
     {
       method: "POST",
+      headers: { prefer: "respond-async" },
       body: JSON.stringify({
         requested_by: command.requestedBy,
         artifacts: command.artifacts.map((artifact) => ({
@@ -1900,8 +2053,7 @@ export async function publishReleaseBatch(
       }),
     },
   );
-  // 中心回**一个安装包**（version + 多平台 artifacts），不是制品数组。
-  return { source: "real", data: normalizePackage(raw) };
+  return { source: "real", data: normalizePublishReceipt(component, raw) };
 }
 
 /** GitHub Release 里的一个资产（含平台槽位与 sha256）。 */
@@ -2277,6 +2429,25 @@ export async function setPlanArchived(
   const raw = await requestJson<any>(
     `/api/v1/admin/rollout-plans/${encodeURIComponent(planId)}/archive`,
     { method: "POST", body: JSON.stringify({ archived }) },
+  );
+  return { source: "real", data: normalizeRolloutPlan(raw) };
+}
+
+/**
+ * **删除**一份执行记录（`DeleteRolloutPlan`）。
+ *
+ * 与归档不同，删除是**物理删除**（计划 + 逐目标条目，不可恢复）；中心只受理**终结态**
+ * （completed / failed / canceled）→ 未终结时回 409。回执是**被删前**的计划视图，
+ * 页面只需拿它确认「删的是哪一份」。
+ *
+ * **刻意不回落示例**：写操作，失败要冒出来（与 `createUpgradePlan` 同取舍）。
+ */
+export async function deletePlan(
+  planId: string,
+): Promise<ExampleResult<RolloutPlan>> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/rollout-plans/${encodeURIComponent(planId)}`,
+    { method: "DELETE" },
   );
   return { source: "real", data: normalizeRolloutPlan(raw) };
 }

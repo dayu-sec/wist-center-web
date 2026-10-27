@@ -11,8 +11,10 @@ import {
   advanceUpgradePlan,
   approveUpgradePlan,
   bindGatewayCustomer,
+  cancelJob,
   createGatewayInstance,
   createUpgradePlan,
+  deletePlan,
   fetchBackendVersion,
   fetchGatewayAgents,
   fetchGatewayBindCommand,
@@ -30,11 +32,14 @@ import {
   fetchPackageLatest,
   fetchPackageSources,
   fetchReleases,
+  fetchReleaseJob,
+  fetchReleaseJobs,
   fetchUpgradePlan,
   fetchUpgradePlans,
   fetchWparseRepos,
   fetchWparseTags,
   getAdminApiToken,
+  isReleaseJobTerminal,
   publishRelease,
   publishReleaseBatch,
   publishWparseRelease,
@@ -550,20 +555,85 @@ export function usePublishRelease(component: string) {
   return useMutation({
     mutationFn: (command: PublishReleaseCommand) =>
       publishRelease(component, command),
-    // 发布成功后刷新该组件的历史，立即反馈新版本已进入发布记录。
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["releases", component] }),
+    // 只入队：先把新任务拉进「下载任务」列表；发布记录等任务成功后再刷。
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["release-jobs"] });
+    },
   });
 }
 
-/** 多平台一次录入（galaxy-ops / galaxy-flow 三平台齐备），成功后刷新该组件历史。 */
+/** 多平台一次录入（galaxy-ops / galaxy-flow 三平台齐备）：同样只入队，成功后刷新任务列表。 */
 export function usePublishReleaseBatch(component: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (command: PublishReleaseBatchCommand) =>
       publishReleaseBatch(component, command),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["releases", component] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["release-jobs"] });
+    },
+  });
+}
+
+/**
+ * 取消一条排队中的下载任务。成功后刷新当前任务与任务列表（状态会变成 `canceled`）。
+ */
+export function useCancelJob() {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["release-job"] });
+    void queryClient.invalidateQueries({ queryKey: ["release-jobs"] });
+  };
+  return useMutation({
+    mutationFn: (jobId: string) => cancelJob(jobId),
+    onSuccess: refresh,
+    // 409（已开始 / 已终结）说明本地状态旧了：照样刷新，让行切到真实状态。
+    onError: refresh,
+  });
+}
+
+/**
+ * 某组件的**远程包下载任务**（新→旧）。
+ *
+ * 有排队 / 执行中的任务时 2s 轮询，全部到终态就停 —— 录入页按它显示「排队中 / 取包中 /
+ * 成功 / 失败」以及失败原因；刷新页面也还能看到最近的任务。
+ */
+export function useReleaseJobs(component: string) {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["release-jobs", component],
+    queryFn: () => fetchReleaseJobs(component),
+    refetchInterval: (query) => {
+      // 拉取失败也继续重试：一次抖动不应该让「在飞任务」的反馈永久停在旧状态。
+      if (query.state.status === "error") return 5000;
+      const jobs = query.state.data ?? [];
+      // 非终态（含未知中间态）就继续问；列表为空时不必空转。
+      return jobs.some((job) => !isReleaseJobTerminal(job.state))
+        ? 2000
+        : false;
+    },
+    enabled,
+  });
+}
+
+/**
+ * 单条下载任务的反馈（表单用）。
+ *
+ * **按 job_id 单独轮询**，不依赖「最近 N 条」列表：任务可能因为列表上限 / 列表接口抖动
+ * 而暂时看不到，但当前这次提交必须一直追到终态。没拿到过数据 / 状态不认识时继续轮询，
+ * 只有 `succeeded` / `failed` 才停。
+ */
+export function useReleaseJob(jobId: string | null) {
+  useAuthVersion();
+  const enabled = Boolean(jobId) && Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["release-job", jobId],
+    queryFn: () => fetchReleaseJob(jobId as string),
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      return state !== undefined && isReleaseJobTerminal(state) ? false : 2000;
+    },
+    enabled,
   });
 }
 
@@ -699,6 +769,59 @@ export function useSetPlanArchived() {
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
     },
   });
+}
+
+/**
+ * 删除一份执行记录（物理删除，不可恢复）。
+ *
+ * 只对**终结态**（完成 / 失败 / 取消）开放；中心同样会拒执行中的计划（409）。
+ */
+export function useDeletePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (planId: string) => deletePlan(planId),
+    onSuccess: () => invalidateRolloutPlans(queryClient),
+  });
+}
+
+/** 批量删除的逐条结果：单条失败不打断其余，页面据此报「删了几条 / 哪几条没删掉」。 */
+export interface DeletePlansResult {
+  deleted: number;
+  failed: { planId: string; error: unknown }[];
+}
+
+/**
+ * 批量清理失败记录（发布执行页的「清理失败记录」）。
+ *
+ * 中心只有单条 `DELETE`；这里**顺序**逐条删（不并发，避免一次写出 N 个请求把中心打满）。
+ * 单条失败不打断其余 —— 返回成功计数与失败清单，页面才能把「部分清理」说清楚。
+ */
+export function useDeletePlans() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (planIds: string[]): Promise<DeletePlansResult> => {
+      const failed: DeletePlansResult["failed"] = [];
+      let deleted = 0;
+      for (const planId of planIds) {
+        try {
+          await deletePlan(planId);
+          deleted += 1;
+        } catch (error) {
+          failed.push({ planId, error });
+        }
+      }
+      return { deleted, failed };
+    },
+    onSuccess: () => invalidateRolloutPlans(queryClient),
+  });
+}
+
+/** 计划列表 / 详情的统一刷新（删除、归档、批准、推进、重派都会改它们）。 */
+function invalidateRolloutPlans(
+  queryClient: ReturnType<typeof useQueryClient>,
+): void {
+  void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
+  void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
 }
 
 /**

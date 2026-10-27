@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
   versionFromArtifactUrl,
+  type ReleaseDownloadJob,
   type ReleasePackage,
   type ResolvedGitHubRelease,
 } from "../api";
@@ -13,10 +15,13 @@ import {
   validateSingleArtifact,
 } from "../packageForm";
 import {
+  useCancelJob,
   usePackageLatest,
   usePackageSources,
   usePublishRelease,
   usePublishReleaseBatch,
+  useReleaseJob,
+  useReleaseJobs,
   useResolveCosPath,
   useResolveGitHubRelease,
   useReleases,
@@ -59,16 +64,51 @@ export interface PackageTarget {
   platforms?: PlatformSlot[];
 }
 
+/** `legacy-` 前缀的任务 id 是新前端给旧中心同步回执的占位，不可查。 */
+const LEGACY_JOB_PREFIX = "legacy-";
+const LAST_RELEASE_JOB_KEY = "wistCenterWeb.lastReleaseJob.";
+
+/** 刷新页面后恢复「本组件最近一次提交」的任务 id（会话级，关页即清）。 */
+function readLastReleaseJob(component: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(`${LAST_RELEASE_JOB_KEY}${component}`);
+  } catch {
+    return null;
+  }
+}
+
+function rememberLastReleaseJob(component: string, jobId: string): void {
+  if (typeof window === "undefined" || jobId.startsWith(LEGACY_JOB_PREFIX)) {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(`${LAST_RELEASE_JOB_KEY}${component}`, jobId);
+  } catch {
+    // 会话存储不可用时只影响「刷新后回显」，不影响本次提交。
+  }
+}
+
+/** 旧中心同步回执的占位 id 不能拿去查任务。 */
+function trackableJobId(jobId: string | null): string | null {
+  return jobId && !jobId.startsWith(LEGACY_JOB_PREFIX) ? jobId : null;
+}
+
 /** 提交某个组件的新版本（录入/镜像），并在同一工作区查看该组件最近的托管记录。 */
 export function PackagePanel({ target }: { target: PackageTarget }) {
   const { data: releasesData } = useReleases(target.component);
   const releases = releasesData?.data ?? [];
+  // 远程包下载任务（新→旧）：有排队 / 执行中时 2s 轮询，到终态就停。
+  const jobs = useReleaseJobs(target.component).data ?? [];
   const platforms = target.platforms ?? [];
   // 录入页的版本输入默认填「该组件最近录入的版本」：操作者只需把它往上改一格。
   const latestVersion = releases[0]?.version;
 
   return (
-    <SectionCard title={`提交 ${target.name} 新版本`} subtitle={target.subtitle}>
+    <SectionCard
+      title={`提交 ${target.name} 新版本`}
+      subtitle={target.subtitle}
+    >
       {platforms.length > 0 ? (
         <VariantsForm
           target={target}
@@ -78,6 +118,7 @@ export function PackagePanel({ target }: { target: PackageTarget }) {
       ) : (
         <SingleArtifactForm target={target} latestVersion={latestVersion} />
       )}
+      <DownloadJobsSection jobs={jobs} />
       <HistorySection target={target} releases={releases} />
     </SectionCard>
   );
@@ -92,6 +133,25 @@ function SingleArtifactForm({
   latestVersion?: string;
 }) {
   const mutation = usePublishRelease(target.component);
+  const queryClient = useQueryClient();
+  // 本表单最近一次提交的任务 id：按 id 单独轮询（不依赖「最近 N 条」列表）；
+  // 刷新页面时从会话存储恢复，反馈不会因为一次刷新就丢。
+  const [jobId, setJobId] = useState<string | null>(() =>
+    readLastReleaseJob(target.component),
+  );
+  const trackedJobId = trackableJobId(jobId);
+  const jobQuery = useReleaseJob(trackedJobId);
+  const job = jobQuery.data ?? mutation.data?.data ?? null;
+  // 任务成功后刷新「最近录入」；每个任务只刷一次。
+  const refreshedJob = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job || job.state !== "succeeded" || job.jobId === refreshedJob.current)
+      return;
+    refreshedJob.current = job.jobId;
+    void queryClient.invalidateQueries({
+      queryKey: ["releases", target.component],
+    });
+  }, [job, queryClient, target.component]);
   // 受控，用于实时预览「会记哪个版本」（真值以提交回执为准）。
   const [artifactUrl, setArtifactUrl] = useState("");
   const [expectedSha256, setExpectedSha256] = useState("");
@@ -156,8 +216,11 @@ function SingleArtifactForm({
         requestedBy: "admin",
       },
       {
-        onSuccess: () => {
-          // 提交成功后清空表单，避免把上一次的地址 / 摘要再交一遍（回执仍留在下方）。
+        onSuccess: (result) => {
+          // 只入队；进度按 job id 单独轮询，并记进会话存储供刷新后回显。
+          setJobId(result.data.jobId);
+          rememberLastReleaseJob(target.component, result.data.jobId);
+          // 提交成功后清空表单，避免把上一次的地址 / 摘要再交一遍。
           formRef.current?.reset();
           setArtifactUrl("");
           setExpectedSha256("");
@@ -167,8 +230,6 @@ function SingleArtifactForm({
       },
     );
   }
-
-  const release = mutation.data?.data;
 
   return (
     <>
@@ -221,14 +282,30 @@ function SingleArtifactForm({
               : "提交后进入托管记录。"}
           </span>
           <PrimaryButton type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "提交中…" : "提交"}
+            {mutation.isPending ? "入队中…" : "提交"}
           </PrimaryButton>
         </div>
       </form>
       {mutation.error ? (
         <ErrorBanner>提交失败：{String(mutation.error)}</ErrorBanner>
       ) : null}
-      {release ? <ReleaseReceipt release={release} /> : null}
+      {jobQuery.isError && jobId ? (
+        <ErrorBanner>
+          任务反馈暂时取不到（正在自动重试）：{String(jobQuery.error)}
+        </ErrorBanner>
+      ) : null}
+      {trackedJobId && jobQuery.isPending && !job ? (
+        <p className={styles.jobHint}>正在读取任务反馈…</p>
+      ) : null}
+      {job ? <ReleaseJobStatus job={job} /> : null}
+      {job?.state === "succeeded" && job.package ? (
+        <ReleaseReceipt release={job.package} />
+      ) : null}
+      {job?.state === "failed" ? (
+        <ErrorBanner>
+          下载 / 录入失败：{job.errorDetail ?? job.errorCode ?? "未知原因"}
+        </ErrorBanner>
+      ) : null}
     </>
   );
 }
@@ -268,8 +345,10 @@ function ResolveSourceField({
   // 配置是异步到的：只配了 COS 的组件把默认来源切到 COS。
   useEffect(() => {
     setSource((current) => {
-      if (current === "github" && !githubConfigured && cosConfigured) return "cos";
-      if (current === "cos" && !cosConfigured && githubConfigured) return "github";
+      if (current === "github" && !githubConfigured && cosConfigured)
+        return "cos";
+      if (current === "cos" && !cosConfigured && githubConfigured)
+        return "github";
       return current;
     });
   }, [githubConfigured, cosConfigured]);
@@ -531,6 +610,22 @@ function VariantsForm({
   latestVersion?: string;
 }) {
   const mutation = usePublishReleaseBatch(target.component);
+  const queryClient = useQueryClient();
+  const [jobId, setJobId] = useState<string | null>(() =>
+    readLastReleaseJob(target.component),
+  );
+  const trackedJobId = trackableJobId(jobId);
+  const jobQuery = useReleaseJob(trackedJobId);
+  const job = jobQuery.data ?? mutation.data?.data ?? null;
+  const refreshedJob = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job || job.state !== "succeeded" || job.jobId === refreshedJob.current)
+      return;
+    refreshedJob.current = job.jobId;
+    void queryClient.invalidateQueries({
+      queryKey: ["releases", target.component],
+    });
+  }, [job, queryClient, target.component]);
   const blankRow = () => ({ artifactUrl: "", expectedSha256: "" });
   const [rows, setRows] = useState(platforms.map(blankRow));
   const [errors, setErrors] = useState<(string | null)[]>(
@@ -614,15 +709,15 @@ function VariantsForm({
         })),
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          setJobId(result.data.jobId);
+          rememberLastReleaseJob(target.component, result.data.jobId);
           setRows(platforms.map(blankRow));
           setErrors(platforms.map(() => null));
         },
       },
     );
   }
-
-  const release = mutation.data?.data;
 
   return (
     <>
@@ -689,19 +784,215 @@ function VariantsForm({
             三平台齐备后一次提交；缺任何一个都会被拒。
           </span>
           <PrimaryButton type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "提交中…" : "提交三平台"}
+            {mutation.isPending ? "入队中…" : "提交三平台"}
           </PrimaryButton>
         </div>
       </form>
       {mutation.error ? (
         <ErrorBanner>批量提交失败：{String(mutation.error)}</ErrorBanner>
       ) : null}
-      {release ? (
+      {jobQuery.isError && jobId ? (
+        <ErrorBanner>
+          任务反馈暂时取不到（正在自动重试）：{String(jobQuery.error)}
+        </ErrorBanner>
+      ) : null}
+      {trackedJobId && jobQuery.isPending && !job ? (
+        <p className={styles.jobHint}>正在读取任务反馈…</p>
+      ) : null}
+      {job ? <ReleaseJobStatus job={job} /> : null}
+      {job?.state === "succeeded" && job.package ? (
         <div className={styles.variantsReceipts}>
-          <ReleaseReceipt release={release} />
+          <ReleaseReceipt release={job.package} />
         </div>
       ) : null}
+      {job?.state === "failed" ? (
+        <ErrorBanner>
+          下载 / 录入失败：{job.errorDetail ?? job.errorCode ?? "未知原因"}
+        </ErrorBanner>
+      ) : null}
     </>
+  );
+}
+
+/** 下载任务状态 → 短词 / 颜色（页面与任务列表共用）。 */
+function jobStateLabel(state: string): string {
+  switch (state) {
+    case "queued":
+      return "排队中";
+    case "running":
+      return "下载 / 校验中";
+    case "succeeded":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "canceled":
+      return "已取消";
+    default:
+      return state || "未知";
+  }
+}
+
+function jobStateTone(
+  state: string,
+): "blue" | "amber" | "green" | "red" | "gray" {
+  switch (state) {
+    case "queued":
+      return "blue";
+    case "running":
+      return "amber";
+    case "succeeded":
+      return "green";
+    case "failed":
+      return "red";
+    case "canceled":
+      return "gray";
+    default:
+      return "gray";
+  }
+}
+
+function jobStateHint(job: ReleaseDownloadJob): string {
+  const total = job.artifacts.length;
+  const progress =
+    total > 0 ? `已处理 ${job.completedArtifacts}/${total} 个制品` : "";
+  switch (job.state) {
+    case "queued":
+      return "已入队：前面的下载任务完成后自动开始。";
+    case "running":
+      return [job.message ?? "正在从远程取包…", progress]
+        .filter(Boolean)
+        .join("；");
+    case "succeeded":
+      return job.package
+        ? `已录入版本 ${job.package.version}。`
+        : "下载与落库已完成。";
+    case "failed":
+      return job.errorDetail ?? job.errorCode ?? "失败原因未提供。";
+    case "canceled":
+      return "已取消：任务不会再执行，也不会产生发布记录。";
+    default:
+      return job.message ?? "";
+  }
+}
+
+/** 当前表单最近一次提交的任务：状态 + 任务 id + 一句可读进度。 */
+function ReleaseJobStatus({ job }: { job: ReleaseDownloadJob }) {
+  const cancel = useCancelJob();
+
+  function handleCancel() {
+    if (
+      !window.confirm(
+        `取消排队中的任务 ${job.jobId}？取消后不会再下载，也不会产生发布记录。`,
+      )
+    ) {
+      return;
+    }
+    cancel.mutate(job.jobId);
+  }
+
+  return (
+    <div className={styles.jobStatus}>
+      <div className={styles.jobStatusHead}>
+        <Badge tone={jobStateTone(job.state)}>{jobStateLabel(job.state)}</Badge>
+        <code className={styles.jobId}>{job.jobId}</code>
+        <span className={styles.jobMeta}>
+          {job.artifacts.length} 个制品 · 入队 {formatDateTime(job.createdAt)}
+        </span>
+        {job.state === "queued" ? (
+          <button
+            type="button"
+            className={styles.jobCancel}
+            disabled={cancel.isPending}
+            onClick={handleCancel}
+          >
+            {cancel.isPending && cancel.variables === job.jobId
+              ? "取消中…"
+              : "取消"}
+          </button>
+        ) : null}
+      </div>
+      <p className={styles.jobHint}>{jobStateHint(job)}</p>
+      {cancel.error ? (
+        <p className={styles.jobNotice}>取消失败：{String(cancel.error)}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** 该组件最近的下载任务（队列串行执行；刷新页面也还在）。 */
+function DownloadJobsSection({ jobs }: { jobs: ReleaseDownloadJob[] }) {
+  const cancel = useCancelJob();
+
+  function handleCancel(jobId: string) {
+    if (
+      !window.confirm(
+        `取消排队中的任务 ${jobId}？取消后不会再下载，也不会产生发布记录。`,
+      )
+    ) {
+      return;
+    }
+    cancel.mutate(jobId);
+  }
+
+  return (
+    <div className={styles.history}>
+      <div className={styles.historyHeader}>
+        <h3 className={styles.historyTitle}>下载任务</h3>
+        <span className={styles.historyHint}>
+          队列串行执行 · 最近 {jobs.length} 条
+        </span>
+      </div>
+      {cancel.error ? (
+        <div className={styles.jobNotice}>取消失败：{String(cancel.error)}</div>
+      ) : null}
+      {jobs.length === 0 ? (
+        <div className={styles.historyEmpty}>暂无下载任务。</div>
+      ) : (
+        <div className={styles.jobList}>
+          {jobs.map((job) => (
+            <div key={job.jobId} className={styles.jobItem}>
+              <Badge tone={jobStateTone(job.state)}>
+                {jobStateLabel(job.state)}
+              </Badge>
+              <code className={styles.jobId}>{job.jobId}</code>
+              <span className={styles.jobMeta}>
+                {job.artifacts.length} 个制品 ·{" "}
+                {formatDateTime(
+                  job.finishedAt ?? job.startedAt ?? job.createdAt,
+                )}
+              </span>
+              {job.state === "running" && job.artifacts.length > 0 ? (
+                <span className={styles.jobMeta}>
+                  {job.completedArtifacts}/{job.artifacts.length}
+                </span>
+              ) : null}
+              {job.package ? (
+                <span className={styles.jobMeta}>
+                  版本 {job.package.version}
+                </span>
+              ) : null}
+              {job.state === "queued" ? (
+                <button
+                  type="button"
+                  className={styles.jobCancel}
+                  disabled={cancel.isPending}
+                  onClick={() => handleCancel(job.jobId)}
+                >
+                  {cancel.isPending && cancel.variables === job.jobId
+                    ? "取消中…"
+                    : "取消"}
+                </button>
+              ) : null}
+              {job.state === "failed" ? (
+                <span className={styles.jobError}>
+                  {job.errorDetail ?? job.errorCode}
+                </span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -763,7 +1054,9 @@ function HistorySection({
               key={`${record.version}/${index}`}
               className={styles.historyItem}
             >
-              <strong className={styles.historyVersion}>{record.version}</strong>
+              <strong className={styles.historyVersion}>
+                {record.version}
+              </strong>
               <div className={styles.historyArtifacts}>
                 {record.artifacts.length === 0 ? (
                   <span className={styles.historyArtifactEmpty}>

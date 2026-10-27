@@ -30,7 +30,10 @@
   color: var(--text-2);
   font-size: 12.5px;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .scopeTab:hover {
@@ -60,6 +63,36 @@
 
 .scopeTabActive .scopeCount {
   color: var(--text-3);
+}
+
+/* 「清理失败记录」是分区行尾的收尾动作：靠右、次级的危险样式，不和分区 tab 抢重心。 */
+.clearFailedButton {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--crit);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.clearFailedButton:hover:not(:disabled) {
+  background: var(--crit-soft);
+}
+
+.clearFailedButton:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-crit);
+}
+
+.clearFailedButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .item {
@@ -176,6 +209,34 @@
 
 .archiveButtonRestore {
   color: var(--accent-strong);
+}
+
+/* 「删除」是**不可恢复**的收尾动作：与归档同尺寸，但用危险色，避免误点成归档。 */
+.deleteButton {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--crit);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.deleteButton:hover:not(:disabled) {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+}
+
+.deleteButton:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-crit);
+}
+
+.deleteButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 重派回执：只说明「新建了哪份补跑计划」，不抢计划列表的视觉重心。 */
