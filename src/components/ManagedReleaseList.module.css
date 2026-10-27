@@ -51,6 +51,67 @@
   color: var(--text-3);
 }
 
+/* 组件快捷筛选：状态 tab 之下的第二排小胶囊，只回答「看哪个组件」。
+   比状态 tab 更轻（无底、字更小），避免两组胶囊抢同一层级。 */
+.componentFilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.componentFilterLabel {
+  margin-right: 4px;
+  color: var(--text-3);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.componentFilterButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.componentFilterButton:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.componentFilterButton:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.componentFilterActive {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.componentFilterCount {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.componentFilterActive .componentFilterCount {
+  color: var(--text-3);
+}
+
 /* 已托管包汇总列表：组件 / 版本 / 平台 / 状态 / 录入时间 / 操作 六列。 */
 .list {
   display: flex;

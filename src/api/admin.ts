@@ -286,6 +286,8 @@ export interface RolloutPlan {
   createdAt: string;
   approvedBy: string | null;
   approvedAt: string | null;
+  /** 归档时刻（`null` = 未归档）。归档是标记：计划与条目全留，默认列表不再展示。 */
+  archivedAt: string | null;
 }
 
 /** 计划里逐目标（网关）的一行（模型 `Control.Rollout.RolloutPlanEntry`）。 */
@@ -936,6 +938,7 @@ function normalizeRolloutPlan(payload: any): RolloutPlan {
     ),
     approvedBy: optionalString(pick(payload, "approved_by", "approvedBy")),
     approvedAt: optionalString(pick(payload, "approved_at", "approvedAt")),
+    archivedAt: optionalString(pick(payload, "archived_at", "archivedAt")),
   };
 }
 
@@ -2048,13 +2051,19 @@ export async function resolveCosPath(
   return normalizeResolvedRelease(raw);
 }
 
-export async function fetchUpgradePlans(): Promise<
-  ExampleResult<RolloutPlan[]>
-> {
-  return fetchOrFallback(
-    "/api/v1/admin/rollout-plans",
-    exampleUpgradePlans,
-  ).then(async (result) => {
+/**
+ * 列出灰度发布计划（执行记录）。
+ *
+ * 默认只带**未归档**的；发布执行页要同时显示「已归档」分区，所以显式
+ * `includeArchived = true` 取全量，再由页面按 `archivedAt` 分组。
+ */
+export async function fetchUpgradePlans(
+  includeArchived = false,
+): Promise<ExampleResult<RolloutPlan[]>> {
+  const path = includeArchived
+    ? "/api/v1/admin/rollout-plans?include_archived=true"
+    : "/api/v1/admin/rollout-plans";
+  return fetchOrFallback(path, exampleUpgradePlans).then(async (result) => {
     if (result.source !== "real") return result;
     const raw = result.data as any;
     const items = Array.isArray(raw) ? raw : [];
@@ -2106,6 +2115,7 @@ function exampleUpgradePlans(): RolloutPlan[] {
       createdAt: new Date().toISOString(),
       approvedBy: "admin",
       approvedAt: new Date().toISOString(),
+      archivedAt: null,
     },
   ];
 }
@@ -2249,6 +2259,25 @@ export async function retryUpgradePlan(
       target_ids: command.targetIds ?? [],
     }),
   });
+  return { source: "real", data: normalizeRolloutPlan(raw) };
+}
+
+/**
+ * 归档 / 取消归档一份执行记录（`ArchiveRolloutPlan`）。
+ *
+ * 归档是**标记**：计划与逐目标条目全留，默认列表不再展示，`archived: false` 随时恢复。
+ * 中心只受理**终结态**（completed / failed / canceled）→ 未终结时回 409。
+ *
+ * **刻意不回落示例**：写操作，失败要冒出来（与 `createUpgradePlan` 同取舍）。
+ */
+export async function setPlanArchived(
+  planId: string,
+  archived: boolean,
+): Promise<ExampleResult<RolloutPlan>> {
+  const raw = await requestJson<any>(
+    `/api/v1/admin/rollout-plans/${encodeURIComponent(planId)}/archive`,
+    { method: "POST", body: JSON.stringify({ archived }) },
+  );
   return { source: "real", data: normalizeRolloutPlan(raw) };
 }
 

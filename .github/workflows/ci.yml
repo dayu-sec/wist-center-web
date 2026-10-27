@@ -51,6 +51,10 @@ jobs:
       - name: Test (execution detail contract)
         run: npm run test:execution-detail
 
+      # 执行记录归档：端点 / body / archived_at 归一化 / include_archived 开关 / 写操作不回落示例。
+      - name: Test (plan archive contract)
+        run: npm run test:plan-archive
+
       # 网关详情页手动升级：单目标 / 单阶段 / 版本去 v 前缀 / spec 与发布页同源。
       - name: Test (manual gateway upgrade)
         run: npm run test:manual-upgrade

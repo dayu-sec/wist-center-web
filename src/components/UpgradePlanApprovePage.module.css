@@ -7,6 +7,61 @@
   margin: 0 auto;
 }
 
+/* 「执行记录 / 已归档」分区：与列表同宽，默认只看未归档的执行记录。 */
+.scopeTabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto 12px;
+}
+
+.scopeTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.scopeTab:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.scopeTab:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.scopeTabActive {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.scopeCount {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scopeTabActive .scopeCount {
+  color: var(--text-3);
+}
+
 .item {
   display: flex;
   flex-direction: column;
@@ -21,6 +76,7 @@
 
 .itemHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -89,6 +145,39 @@
   cursor: not-allowed;
 }
 
+/* 「归档 / 取消归档」是收尾动作，不是主行动：文字按钮，不与批准 / 推进 / 重试抢重心。 */
+.archiveButton {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.archiveButton:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.archiveButton:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.archiveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.archiveButtonRestore {
+  color: var(--accent-strong);
+}
+
 /* 重派回执：只说明「新建了哪份补跑计划」，不抢计划列表的视觉重心。 */
 .retryNotice {
   width: calc(100% - 48px);
@@ -144,7 +233,8 @@
   .list,
   .empty,
   .approvedNotice,
-  .limitNote {
+  .limitNote,
+  .scopeTabs {
     width: calc(100% - 32px);
     max-width: none;
   }

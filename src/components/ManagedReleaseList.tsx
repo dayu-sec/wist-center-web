@@ -31,12 +31,53 @@ export function ManagedReleaseList({
   const { data, isLoading, source } = useAllReleases(components);
   const setStatus = useSetReleaseStatus();
 
-  const activeCount = data.filter((record) => record.status !== "expired").length;
+  const activeCount = data.filter(
+    (record) => record.status !== "expired",
+  ).length;
   const expiredCount = data.length - activeCount;
   const [tab, setTab] = useState<"active" | "expired">("active");
-  const visible = data.filter((record) =>
-    tab === "expired" ? record.status === "expired" : record.status !== "expired",
+  const [componentFilter, setComponentFilter] = useState<string>("all");
+
+  // 状态 tab 先收窄，组件快捷筛选再在其结果上收窄；两层条件是叠加的。
+  const statusRecords = data.filter((record) =>
+    tab === "expired"
+      ? record.status === "expired"
+      : record.status !== "expired",
   );
+
+  // 只列**确有托管记录**的组件（沿用 RELEASE_TARGETS 的顺序），
+  // 未知组件（旧数据里出现过的）按 component 原样兜底，避免列表里选不到。
+  const knownComponents = new Set(components);
+  const presentComponents = new Set(data.map((record) => record.component));
+  const componentOptions = [
+    ...targets
+      .filter((target) => presentComponents.has(target.component))
+      .map((target) => ({ component: target.component, name: target.name })),
+    ...[...presentComponents]
+      .filter((component) => !knownComponents.has(component))
+      .map((component) => ({ component, name: component })),
+  ];
+  // 选中的组件随数据消失时回落到「全部」，不让空筛选把整张表卡住。
+  const activeComponent =
+    componentFilter !== "all" &&
+    componentOptions.some((option) => option.component === componentFilter)
+      ? componentFilter
+      : "all";
+  const countByComponent = new Map<string, number>();
+  for (const record of statusRecords) {
+    countByComponent.set(
+      record.component,
+      (countByComponent.get(record.component) ?? 0) + 1,
+    );
+  }
+  const visible = statusRecords.filter(
+    (record) =>
+      activeComponent === "all" || record.component === activeComponent,
+  );
+  const activeComponentName =
+    activeComponent === "all"
+      ? ""
+      : (nameByComponent.get(activeComponent) ?? activeComponent);
 
   return (
     <SectionCard
@@ -85,6 +126,51 @@ export function ManagedReleaseList({
               <span className={styles.tabCount}>{expiredCount}</span>
             </button>
           </div>
+          {componentOptions.length > 1 ? (
+            <div
+              className={styles.componentFilters}
+              role="group"
+              aria-label="按组件筛选"
+            >
+              <span className={styles.componentFilterLabel}>组件</span>
+              <button
+                type="button"
+                aria-pressed={activeComponent === "all"}
+                className={
+                  activeComponent === "all"
+                    ? `${styles.componentFilterButton} ${styles.componentFilterActive}`
+                    : styles.componentFilterButton
+                }
+                onClick={() => setComponentFilter("all")}
+              >
+                全部
+                <span className={styles.componentFilterCount}>
+                  {statusRecords.length}
+                </span>
+              </button>
+              {componentOptions.map((option) => {
+                const active = activeComponent === option.component;
+                return (
+                  <button
+                    key={option.component}
+                    type="button"
+                    aria-pressed={active}
+                    className={
+                      active
+                        ? `${styles.componentFilterButton} ${styles.componentFilterActive}`
+                        : styles.componentFilterButton
+                    }
+                    onClick={() => setComponentFilter(option.component)}
+                  >
+                    {option.name}
+                    <span className={styles.componentFilterCount}>
+                      {countByComponent.get(option.component) ?? 0}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
           <div
             id="managed-package-panel"
             role="tabpanel"
@@ -92,81 +178,90 @@ export function ManagedReleaseList({
           >
             {visible.length === 0 ? (
               <div className={styles.empty}>
-                {tab === "expired"
-                  ? "没有已过期的包。"
-                  : "在用包都在这儿；标记过期的版本已移到「已过期」。"}
+                {activeComponent !== "all"
+                  ? `「${activeComponentName}」在${
+                      tab === "expired" ? "已过期" : "在用"
+                    }里没有包。`
+                  : tab === "expired"
+                    ? "没有已过期的包。"
+                    : "在用包都在这儿；标记过期的版本已移到「已过期」。"}
               </div>
             ) : (
               <div className={styles.list}>
-          <div className={styles.headerRow} aria-hidden="true">
-            <span>组件</span>
-            <span>版本</span>
-            <span>平台</span>
-            <span>状态</span>
-            <span>录入时间</span>
-            <span>操作</span>
-          </div>
-          {visible.map((record, index) => {
-            const expired = record.status === "expired";
-            const pending =
-              setStatus.isPending &&
-              setStatus.variables?.component === record.component &&
-              setStatus.variables?.version === record.version;
-            return (
-              <div
-                key={`${record.component}/${record.version}/${index}`}
-                className={styles.row}
-              >
-                <strong className={styles.component}>
-                  {nameByComponent.get(record.component) ?? record.component}
-                </strong>
-                <span className={styles.version}>{record.version}</span>
-                <span className={styles.platform}>
-                  {record.artifacts.length === 0 ? (
-                    <span className={styles.platformChip}>
-                      {platformLabel(null)}
-                    </span>
-                  ) : (
-                    record.artifacts.map((artifact, artifactIndex) => (
-                      <span
-                        key={`${artifact.platform ?? "none"}/${artifactIndex}`}
-                        className={styles.platformChip}
-                      >
-                        {platformLabel(artifact.platform)}
+                <div className={styles.headerRow} aria-hidden="true">
+                  <span>组件</span>
+                  <span>版本</span>
+                  <span>平台</span>
+                  <span>状态</span>
+                  <span>录入时间</span>
+                  <span>操作</span>
+                </div>
+                {visible.map((record, index) => {
+                  const expired = record.status === "expired";
+                  const pending =
+                    setStatus.isPending &&
+                    setStatus.variables?.component === record.component &&
+                    setStatus.variables?.version === record.version;
+                  return (
+                    <div
+                      key={`${record.component}/${record.version}/${index}`}
+                      className={styles.row}
+                    >
+                      <strong className={styles.component}>
+                        {nameByComponent.get(record.component) ??
+                          record.component}
+                      </strong>
+                      <span className={styles.version}>{record.version}</span>
+                      <span className={styles.platform}>
+                        {record.artifacts.length === 0 ? (
+                          <span className={styles.platformChip}>
+                            {platformLabel(null)}
+                          </span>
+                        ) : (
+                          record.artifacts.map((artifact, artifactIndex) => (
+                            <span
+                              key={`${artifact.platform ?? "none"}/${artifactIndex}`}
+                              className={styles.platformChip}
+                            >
+                              {platformLabel(artifact.platform)}
+                            </span>
+                          ))
+                        )}
                       </span>
-                    ))
-                  )}
-                </span>
-                <span className={styles.status}>
-                  <Badge tone={releaseStatusTone(record.status)}>
-                    {releaseStatusLabel(record.status)}
-                  </Badge>
-                  {record.source === "example" ? <ExampleTag /> : null}
-                </span>
-                <span className={styles.time}>
-                  {formatDateTime(record.publishedAt)}
-                </span>
-                <span className={styles.action}>
-                  <button
-                    type="button"
-                    className={`${styles.actionButton} ${
-                      expired ? styles.actionButtonRestore : ""
-                    }`}
-                    disabled={pending}
-                    onClick={() =>
-                      setStatus.mutate({
-                        component: record.component,
-                        version: record.version,
-                        status: expired ? "published" : "expired",
-                      })
-                    }
-                  >
-                    {pending ? "处理中…" : expired ? "恢复在用" : "标记过期"}
-                  </button>
-                </span>
-              </div>
-            );
-          })}
+                      <span className={styles.status}>
+                        <Badge tone={releaseStatusTone(record.status)}>
+                          {releaseStatusLabel(record.status)}
+                        </Badge>
+                        {record.source === "example" ? <ExampleTag /> : null}
+                      </span>
+                      <span className={styles.time}>
+                        {formatDateTime(record.publishedAt)}
+                      </span>
+                      <span className={styles.action}>
+                        <button
+                          type="button"
+                          className={`${styles.actionButton} ${
+                            expired ? styles.actionButtonRestore : ""
+                          }`}
+                          disabled={pending}
+                          onClick={() =>
+                            setStatus.mutate({
+                              component: record.component,
+                              version: record.version,
+                              status: expired ? "published" : "expired",
+                            })
+                          }
+                        >
+                          {pending
+                            ? "处理中…"
+                            : expired
+                              ? "恢复在用"
+                              : "标记过期"}
+                        </button>
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

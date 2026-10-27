@@ -43,6 +43,7 @@ import {
   retryUpgradePlan,
   rotateGatewayLinkToken,
   setGatewayArchived,
+  setPlanArchived,
   setReleaseStatus,
   type BindGatewayCustomerCommand,
   type CreateGatewayInstanceCommand,
@@ -594,12 +595,18 @@ export function useSetReleaseStatus() {
   });
 }
 
-export function useUpgradePlans() {
+/**
+ * 灰度发布计划列表。
+ *
+ * 传 `includeArchived = true` 时把**已归档**的执行记录也带回来（发布执行页的「已归档」
+ * 分区用）；其他页面默认只取未归档的。
+ */
+export function useUpgradePlans(includeArchived = false) {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken());
   return useQuery({
-    queryKey: ["upgrade-plans"],
-    queryFn: fetchUpgradePlans,
+    queryKey: ["upgrade-plans", includeArchived],
+    queryFn: () => fetchUpgradePlans(includeArchived),
     refetchInterval: enabled ? 15_000 : false,
     enabled,
   });
@@ -670,6 +677,23 @@ export function useRetryUpgradePlan() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (command: RetryPlanCommand) => retryUpgradePlan(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });
+    },
+  });
+}
+
+/**
+ * 归档 / 取消归档一份执行记录（只改列表可见性，不改计划状态、不触发网关）。
+ *
+ * 归档是标记：计划与逐目标条目全留，随时可以取消归档恢复。
+ */
+export function useSetPlanArchived() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: { planId: string; archived: boolean }) =>
+      setPlanArchived(command.planId, command.archived),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plans"] });
       void queryClient.invalidateQueries({ queryKey: ["upgrade-plan"] });

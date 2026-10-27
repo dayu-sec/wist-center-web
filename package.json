@@ -1,7 +1,7 @@
 {
   "name": "wist-center-web",
   "private": true,
-  "version": "0.15.0",
+  "version": "0.17.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
     "test:admin-token": "tsx tests/admin-token-contract.test.ts",
     "test:theme": "tsx tests/theme-contract.test.ts",
     "test:rollout-log-excerpt": "tsx tests/rollout-log-excerpt.test.ts",
+    "test:plan-archive": "tsx tests/plan-archive-contract.test.ts",
     "test:version": "tsx tests/version-contract.test.ts",
     "preview": "vite preview"
   },
