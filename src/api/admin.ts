@@ -1994,6 +1994,113 @@ export async function cancelJob(jobId: string): Promise<void> {
   });
 }
 
+/** 任务进度（与后端 `JobProgress` 同形）。 */
+export interface AdminJobProgress {
+  completed: number;
+  total: number;
+  /** 当前步骤的可读说明（如 `取包中（2/3）`）；终态后保留最后一步。 */
+  message: string | null;
+}
+
+/**
+ * 通用后台任务（`GET /api/v1/admin/jobs`）—— 与后端 `infra::jobs::JobRecord` 同形。
+ *
+ * 与 `ReleaseDownloadJob` 的区别：那个是 release 领域的**投影**（只含组件发布需要的字段）；
+ * 这个直接是任务本体，`kind` / `queue` / `subject` 都在，所以任务队列页不需要为每种业务
+ * 单独写一套渲染 —— 领域形状（如「取包 2/3」）仍由各自页面解释。
+ */
+export interface AdminJob {
+  jobId: string;
+  /** handler kind（如 `release-download`）。 */
+  kind: string;
+  /** 队列名：同一队列串行执行。 */
+  queue: string;
+  /** 业务主体（release 任务是组件名）；通用读面按它过滤。 */
+  subject: string | null;
+  state: string;
+  priority: number;
+  /** 原始载荷 / 结果：完整摊开，调用方自己决定怎么读。 */
+  payload: unknown;
+  result: unknown;
+  progress: AdminJobProgress;
+  errorCode: string | null;
+  errorStatus: number | null;
+  errorDetail: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+/**
+ * 任务是否已到**明确终态**：`succeeded` / `failed` / `canceled`。
+ *
+ * 与 `isReleaseJobTerminal` 同一口径：按「非终态继续问」才不会把还在跑的任务提前当成结束了。
+ */
+export function isAdminJobTerminal(state: string): boolean {
+  return state === "succeeded" || state === "failed" || state === "canceled";
+}
+
+function normalizeJobProgress(raw: any): AdminJobProgress {
+  const source = pick(raw, "progress") ?? {};
+  return {
+    completed: optionalNumber(pick(source, "completed")) ?? 0,
+    total: optionalNumber(pick(source, "total")) ?? 0,
+    message: optionalString(pick(source, "message")),
+  };
+}
+
+function normalizeAdminJob(raw: any): AdminJob {
+  return {
+    jobId: requiredString(pick(raw, "job_id", "jobId"), "job.jobId"),
+    kind: requiredString(pick(raw, "kind"), "job.kind"),
+    queue: requiredString(pick(raw, "queue"), "job.queue"),
+    subject: optionalString(pick(raw, "subject")),
+    state: requiredString(pick(raw, "state"), "job.state"),
+    priority: optionalNumber(pick(raw, "priority")) ?? 0,
+    payload: pick(raw, "payload") ?? null,
+    result: pick(raw, "result") ?? null,
+    progress: normalizeJobProgress(raw),
+    errorCode: optionalString(pick(raw, "error_code", "errorCode")),
+    errorStatus: optionalNumber(pick(raw, "error_status", "errorStatus")),
+    errorDetail: optionalString(pick(raw, "error_detail", "errorDetail")),
+    createdAt: requiredString(
+      pick(raw, "created_at", "createdAt"),
+      "job.createdAt",
+    ),
+    startedAt: optionalString(pick(raw, "started_at", "startedAt")),
+    finishedAt: optionalString(pick(raw, "finished_at", "finishedAt")),
+  };
+}
+
+/** 任务列表的过滤条件；都可省。 */
+export interface AdminJobQuery {
+  queue?: string;
+  kind?: string;
+  state?: string;
+  subject?: string;
+  limit?: number;
+}
+
+/**
+ * 通用任务列表（`GET /api/v1/admin/jobs`，新→旧）。
+ *
+ * **刻意不回落示例**：任务队列的价值在于「真实在跑什么」，示例数据会让人把假的当成现场。
+ */
+export async function fetchJobs(query: AdminJobQuery = {}): Promise<AdminJob[]> {
+  const params = new URLSearchParams({
+    limit: String(query.limit ?? 50),
+  });
+  for (const key of ["queue", "kind", "state", "subject"] as const) {
+    const value = query[key]?.trim();
+    if (value) params.set(key, value);
+  }
+  const raw = await requestJson<any>(
+    `/api/v1/admin/jobs?${params.toString()}`,
+  );
+  const items = Array.isArray(raw) ? raw : [];
+  return items.map(normalizeAdminJob);
+}
+
 /** 托管状态取值：`published`（在用）/ `expired`（已过期）。 */
 export type ReleaseStatus = "published" | "expired";
 

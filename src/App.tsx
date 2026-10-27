@@ -5,6 +5,7 @@ import { GatewayListPage } from "./components/GatewayListPage";
 import { GatewayDetailPage } from "./components/GatewayDetailPage";
 import { GatewayInstancePage } from "./components/GatewayInstancePage";
 import { GatewayInstanceDetailPage } from "./components/GatewayInstanceDetailPage";
+import { JobsPage } from "./components/JobsPage";
 import { PackageListPage } from "./components/PackageListPage";
 import { PackageAddPage } from "./components/PackageAddPage";
 import { ReleasePage } from "./components/ReleasePage";
@@ -23,6 +24,8 @@ export function App() {
           element={<GatewayDetailPage />}
         />
         <Route path="/instance" element={<GatewayInstancePage />} />
+        {/* 任务队列：中心执行的异步后台任务（远程包下载等），排队中可取消。 */}
+        <Route path="/jobs" element={<JobsPage />} />
         <Route
           path="/instance/:gatewayId"
           element={<GatewayInstanceDetailPage />}

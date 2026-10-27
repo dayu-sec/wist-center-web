@@ -101,17 +101,41 @@
   gap: 6px;
 }
 
-/* 目标卡片：**只读**（目标自动确定，不再手勾），但仍然一张卡一台 —— 谁进、谁被排除一眼看完。 */
+/* 目标卡片：一格一台，可点选 / 取消 —— 「选中的就是本次任务的范围」，灰度阶段只在其中切分。 */
 .gatewayCard {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  width: 100%;
   padding: 7px 9px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  font-size: 12.5px;
   color: var(--text-2);
+  font-family: var(--font);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gatewayCard:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.gatewayCard:focus-visible {
+  box-shadow: var(--ring);
+}
+
+.gatewayCard:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* 选中的目标：主色边框 + 淡底，与「没选」的卡一眼分开。 */
+.gatewayCardSelected {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .gatewayCardId {
@@ -125,7 +149,7 @@
   color: var(--text-3);
 }
 
-/* 被排除的离线网关：虚线 + 降级，与「进了目标」的卡明显分开。 */
+/* 未选中的离线网关：虚线 + 降级。 */
 .gatewayCardExcluded {
   border-style: dashed;
   border-color: var(--border-strong);
@@ -136,6 +160,34 @@
 
 .gatewayCardExcluded .gatewayCardId {
   color: var(--text-3);
+}
+
+/* 「全选在线 / 清空」小按钮组。 */
+.targetActions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.targetAction {
+  padding: 3px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.targetAction:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.targetAction:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* 示例数据告警：整块红底，别再让「内置示例机队」被当成自己的机队。 */
@@ -163,6 +215,15 @@
   display: block;
   margin-top: 8px;
   color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 手上确实选错了才出现的告警（如手选了离线网关）：比 formNote 醒目，但不是硬错。 */
+.formWarn {
+  display: block;
+  margin-top: 8px;
+  color: var(--warn, #b45309);
   font-size: 12px;
   line-height: 1.5;
 }

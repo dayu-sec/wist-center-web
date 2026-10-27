@@ -2,13 +2,14 @@ import type { GatewayStatusView } from "../api";
 import styles from "./PlanForm.module.css";
 
 /**
- * 「创建升级计划」两个面板（① 升级安装 / ② Agent 包下发）共用的**目标块**。
+ * 「创建发布计划」三个面板（① 升级安装 / ② Agent 包 / ③ 知识库）共用的**目标选择块**。
  *
- * 目标不再手勾（学 gateway-web 的「Agent 升级」，口径见 `gatewayUpgradeTargets`）：机队里排掉
- * 明确离线的，其余全部自动成为目标；这里只**把结果摊开**让人核对 —— 哪些进、哪些被排除、为什么。
+ * 默认全选在线（排掉明确离线的 —— 它们拉不到计划，排进金丝雀 / 批次只会把整段卡住），
+ * 但**可以逐个改**：现场常常只想先发一两台，或把压测机、待下线机器排除在外。
+ * 选中的目标就是这次任务的范围，灰度阶段在**这个范围**内按阶梯切分。
  *
- * 机队本身也不是「所有网关记录」：它来自中心的状态视图 = **已接入并上报过**、且未归档的网关
- * （未接入的实例留在实例页的「待接入」组里，不会出现在这里）。
+ * 机队本身来自中心的状态视图 = **已接入并上报过**、且未归档的网关（未接入的实例留在
+ * 实例页的「待接入」组里，不会出现在这里）。
  */
 export function GatewayTargetBlock({
   gateways,
@@ -17,8 +18,12 @@ export function GatewayTargetBlock({
   offlineCount,
   exampleFleet,
   exampleVersions,
+  onToggle,
+  onResetToDefault,
+  onClear,
 }: {
   gateways: readonly GatewayStatusView[];
+  /** 当前选中的目标（已排序）。 */
   targetIds: readonly string[];
   fleetSize: number;
   offlineCount: number;
@@ -26,18 +31,41 @@ export function GatewayTargetBlock({
   exampleFleet: boolean;
   /** 版本列表来自内置示例数据。 */
   exampleVersions: boolean;
+  onToggle: (gatewayId: string) => void;
+  onResetToDefault: () => void;
+  onClear: () => void;
 }) {
+  const selected = new Set(targetIds);
   const excluded = gateways.filter((gateway) => gateway.status === "offline");
   const exampleData = exampleFleet || exampleVersions;
+  // 手选了离线网关：允许，但把后果说清楚（阶段可能永远不了结）。
+  const offlineSelected = excluded.filter((gateway) =>
+    selected.has(gateway.gatewayId),
+  );
 
   return (
     <div className={styles.block}>
       <div className={styles.blockHeader}>
         <span className={styles.blockTitle}>
-          Gateway 目标（自动确定 {targetIds.length} 台）
+          Gateway 目标（已选 {targetIds.length} / {fleetSize} 台）
         </span>
-        <span className={styles.sectionNote}>
-          学「Agent 升级」：机队里排掉明确离线的，其余全部自动成为目标，不用逐个勾
+        <span className={styles.targetActions}>
+          <button
+            type="button"
+            className={styles.targetAction}
+            onClick={onResetToDefault}
+            disabled={exampleFleet}
+          >
+            全选在线
+          </button>
+          <button
+            type="button"
+            className={styles.targetAction}
+            onClick={onClear}
+            disabled={exampleFleet || targetIds.length === 0}
+          >
+            清空
+          </button>
         </span>
       </div>
 
@@ -52,12 +80,11 @@ export function GatewayTargetBlock({
         </div>
       ) : (
         <span className={styles.formNote}>
-          机队 <strong>{fleetSize}</strong> 台（<strong>已接入并上报过</strong>
-          、未归档的网关；未接入的实例不在此列）
+          默认全选在线（已接入并上报过、未归档的网关；未接入的实例不在此列）
           {offlineCount > 0
-            ? `，其中 ${offlineCount} 台明确离线已排除在目标之外`
+            ? `，其中 ${offlineCount} 台明确离线默认不选`
             : ""}
-          。目标按 gateway_id 排序自动切片。
+          。点卡片可逐台取消 / 加回 —— **选中的这几台就是本次任务的范围**，灰度阶段只在其中切分。
         </span>
       )}
 
@@ -71,31 +98,42 @@ export function GatewayTargetBlock({
         <div className={styles.gatewayGrid}>
           {gateways.map((gateway) => {
             const offline = gateway.status === "offline";
+            const checked = selected.has(gateway.gatewayId);
             return (
-              <span
+              <button
                 key={gateway.gatewayId}
-                className={`${styles.gatewayCard} ${
-                  offline ? styles.gatewayCardExcluded : ""
-                }`}
+                type="button"
+                aria-pressed={checked}
+                disabled={exampleFleet}
+                onClick={() => onToggle(gateway.gatewayId)}
+                className={[
+                  styles.gatewayCard,
+                  checked ? styles.gatewayCardSelected : "",
+                  !checked && offline ? styles.gatewayCardExcluded : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
                 <span className={styles.gatewayCardId}>
+                  {checked ? "✓ " : ""}
                   {gateway.gatewayId}
                 </span>
                 <span className={styles.gatewayCardSub}>
                   {gateway.version}
-                  {offline ? " · 离线（排除）" : ""}
+                  {offline ? (checked ? " · 离线（已选）" : " · 离线") : ""}
                 </span>
-              </span>
+              </button>
             );
           })}
         </div>
       )}
 
-      {excluded.length > 0 && !exampleData ? (
-        <span className={styles.formNote}>
-          离线的 {excluded.map((gateway) => gateway.gatewayId).join("、")}{" "}
-          被排除：拉不到计划的目标排进金丝雀 / 批次只会把整段卡住（阶段永远不了结）。
-          等它们回到在线，再用新的计划覆盖。
+      {offlineSelected.length > 0 && !exampleData ? (
+        <span className={styles.formWarn}>
+          已选中的离线网关：{offlineSelected
+            .map((gateway) => gateway.gatewayId)
+            .join("、")}
+          —— 它们拉不到计划，排进金丝雀 / 批次会把该段卡住（阶段永远不了结）。确认已恢复再推进。
         </span>
       ) : null}
     </div>

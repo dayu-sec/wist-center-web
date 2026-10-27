@@ -9,7 +9,7 @@ import {
 } from "./ui";
 import { availablePhaseCounts, phaseScaleLabel, planPhases } from "@dayu-sec/wist-web-core/release";
 import { GatewayTargetBlock } from "./GatewayTargetBlock";
-import { selectGatewayUpgradeTargets } from "./gatewayUpgradeTargets";
+import { useGatewayTargets } from "./useGatewayTargets";
 import styles from "./PlanForm.module.css";
 
 /**
@@ -70,14 +70,14 @@ export function PackagePushPanel({
   const [timeoutSeconds, setTimeoutSeconds] = useState(1800);
   const [batchSize, setBatchSize] = useState(0);
 
-  // 下发目标**自动确定**：机队（已接入并上报过、未归档）里排除明确离线的（与 ① 同一口径）。
-  const fleet = useMemo(() => selectGatewayUpgradeTargets(gateways), [gateways]);
-  const selected = fleet.targetIds;
-
   // 机队 / 版本只要有一头是**示例数据**，就不能拿去建计划（目标 id 与版本都不存在）。
   const exampleFleet = statusData?.source === "example";
   const exampleVersions = releases.source === "example";
   const exampleData = exampleFleet || exampleVersions;
+
+  // 下发目标：默认全选在线，可逐台取消 / 加回（选中范围就是灰度切分的范围）。
+  const fleet = useGatewayTargets(gateways, exampleFleet);
+  const selected = fleet.selected;
 
   // 阶段数按目标台数收窄（每段至少 1 台）；小目标就不再多轮。
   const phaseCounts = useMemo(() => availablePhaseCounts(selected.length), [selected.length]);
@@ -152,6 +152,9 @@ export function PackagePushPanel({
           offlineCount={fleet.offlineCount}
           exampleFleet={exampleFleet}
           exampleVersions={exampleVersions}
+          onToggle={fleet.toggle}
+          onResetToDefault={fleet.resetToDefault}
+          onClear={fleet.clear}
         />
 
         {activateOption ? (

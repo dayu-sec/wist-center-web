@@ -1,7 +1,7 @@
 {
   "name": "wist-center-web",
   "private": true,
-  "version": "0.19.0",
+  "version": "0.20.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,7 @@
     "test:knowledge-package-push": "tsx tests/knowledge-package-push-contract.test.ts",
     "test:artifact-name": "tsx tests/artifact-name.test.ts",
     "test:package-form": "tsx tests/package-form.test.ts",
-    "test:gateway-targets": "tsx tests/gateway-upgrade-targets.test.ts",
+    "test:gateway-targets": "tsx tests/gateway-target-selection.test.ts",
     "test:gateway-ops": "tsx tests/gateway-ops-contract.test.ts",
     "test:gateway-detail-tabs": "tsx tests/gateway-detail-tabs.test.ts",
     "test:release-components": "tsx tests/release-components.test.ts",
@@ -24,6 +24,7 @@
     "test:plan-archive": "tsx tests/plan-archive-contract.test.ts",
     "test:plan-delete": "tsx tests/plan-delete-contract.test.ts",
     "test:release-download-job": "tsx tests/release-download-job-contract.test.ts",
+    "test:admin-jobs": "tsx tests/admin-jobs-contract.test.ts",
     "test:version": "tsx tests/version-contract.test.ts",
     "preview": "vite preview"
   },

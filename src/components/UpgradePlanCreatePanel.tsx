@@ -18,7 +18,8 @@ import {
   planPhases,
 } from "@dayu-sec/wist-web-core/release";
 import { GatewayTargetBlock } from "./GatewayTargetBlock";
-import { selectGatewayUpgradeTargets, targetsMissingVersion } from "./gatewayUpgradeTargets";
+import { useGatewayTargets } from "./useGatewayTargets";
+import { targetsMissingVersion } from "./gatewayUpgradeTargets";
 import { UPGRADE_COMPONENTS } from "./releaseComponents";
 import styles from "./PlanForm.module.css";
 
@@ -36,12 +37,11 @@ function defaultDeadlineLocal(): string {
 }
 
 /**
- * 创建升级计划：多组件目标版本 + **自动确定的网关目标** + **灰度阶段**。
+ * 创建升级计划：多组件目标版本 + **可选的网关目标** + **灰度阶段**。
  *
- * 两处都照 gateway-web 的口径，不再让人手填：
- * - **目标**：机队里排掉明确离线的，其余自动作为升级目标（见 `gatewayUpgradeTargets`）；
- * - **灰度**：只选阶段数（2/3/4/5），网关按固定阶梯（1 台 → 10% → 30% → 70% → 全量）自动分配。
- * 推进一律人工确认。
+ * - **目标**：默认全选在线（排掉明确离线的），可以逐台取消 / 加回 —— 选中的就是本次范围；
+ * - **灰度**：只选阶段数（2/3/4/5），网关按固定阶梯（1 台 → 10% → 30% → 70% → 全量）
+ *   在**选中范围内**自动分配。推进一律人工确认。
  */
 export function UpgradePlanCreatePanel() {
   const mutation = useCreateUpgradePlan();
@@ -63,18 +63,15 @@ export function UpgradePlanCreatePanel() {
   const [timeoutSeconds, setTimeoutSeconds] = useState(1800);
   const [batchSize, setBatchSize] = useState(0);
 
-  // 升级目标**自动确定**：机队（已接入并上报过、未归档）里排除明确离线的。
-  const fleet = useMemo(
-    () => selectGatewayUpgradeTargets(gateways),
-    [gateways],
-  );
-  const selected = fleet.targetIds;
-
   // 机队 / 版本只要有一头是**示例数据**，就不能拿去建计划：目标 id 与版本都是假的，
   // 中心要么回「unknown target(s)」、要么建出一份永远解析不出制品的空计划。
   const exampleFleet = statusData?.source === "example";
   const exampleVersions = releases.source === "example";
   const exampleData = exampleFleet || exampleVersions;
+
+  // 升级目标：默认全选在线，可逐台取消 / 加回（选中范围就是灰度切分的范围）。
+  const fleet = useGatewayTargets(gateways, exampleFleet);
+  const selected = fleet.selected;
 
   const [phaseCount, setPhaseCount] = useState(3);
 
@@ -143,7 +140,7 @@ export function UpgradePlanCreatePanel() {
   return (
     <SectionCard
       title="创建升级计划"
-      subtitle="选择多组件目标版本与网关范围，灰度阶段按阶梯自动分配；批准后逐段推进。"
+      subtitle="选择多组件目标版本与要发布的网关（默认全选在线，可逐台改），灰度阶段在选中范围内按阶梯切分；批准后逐段推进。"
     >
       <form onSubmit={handleSubmit}>
         <div className={styles.block}>
@@ -210,6 +207,9 @@ export function UpgradePlanCreatePanel() {
           offlineCount={fleet.offlineCount}
           exampleFleet={exampleFleet}
           exampleVersions={exampleVersions}
+          onToggle={fleet.toggle}
+          onResetToDefault={fleet.resetToDefault}
+          onClear={fleet.clear}
         />
 
         <div className={styles.block}>

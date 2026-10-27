@@ -43,6 +43,25 @@ export function selectGatewayUpgradeTargets(
   };
 }
 
+/**
+ * 勾选 / 取消**一台**目标（返回新的、按 gateway_id 排序的列表）。
+ *
+ * 保持排序：中心按 `gateway_id` 排序后切片，列表顺序稳定才能让「金丝雀是哪一台」
+ * 在预览与实际执行之间对得上。
+ */
+export function toggleGatewayTarget(
+  current: readonly string[],
+  gatewayId: string,
+): string[] {
+  const next = new Set(current);
+  if (next.has(gatewayId)) {
+    next.delete(gatewayId);
+  } else {
+    next.add(gatewayId);
+  }
+  return [...next].sort();
+}
+
 /** 计划目标里**没选版本**的组件（去重、保持输入顺序）。
  *
  * 中心按 `(component, target_version)` 反查已发布制品；版本留空时派生不出地址，

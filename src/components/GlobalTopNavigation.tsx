@@ -71,6 +71,14 @@ function IconApprove() {
   );
 }
 
+function IconJobs() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path d="M2.4 4.2h11.2M2.4 8h11.2M2.4 11.8h7" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -82,6 +90,9 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "运维",
     items: [
       { to: "/instance", label: "网关管理", icon: <IconInstance />, end: true },
+      // 任务队列放在运维组：它回答的是「中心现在在忙什么 / 刚才为什么失败」，
+      // 与「发什么版本」是两件事。
+      { to: "/jobs", label: "任务队列", icon: <IconJobs />, end: true },
     ],
   },
   {

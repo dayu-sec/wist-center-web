@@ -29,6 +29,7 @@ import {
   fetchGatewayStatusView,
   fetchGatewayUpgradeScript,
   fetchGatewayUptime,
+  fetchJobs,
   fetchPackageLatest,
   fetchPackageSources,
   fetchReleases,
@@ -39,6 +40,7 @@ import {
   fetchWparseRepos,
   fetchWparseTags,
   getAdminApiToken,
+  isAdminJobTerminal,
   isReleaseJobTerminal,
   publishRelease,
   publishReleaseBatch,
@@ -50,6 +52,7 @@ import {
   setGatewayArchived,
   setPlanArchived,
   setReleaseStatus,
+  type AdminJobQuery,
   type BindGatewayCustomerCommand,
   type CreateGatewayInstanceCommand,
   type CreateUpgradePlanCommand,
@@ -582,6 +585,8 @@ export function useCancelJob() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["release-job"] });
     void queryClient.invalidateQueries({ queryKey: ["release-jobs"] });
+    // 通用任务队列页看的是同一批任务，取消后一起刷。
+    void queryClient.invalidateQueries({ queryKey: ["jobs"] });
   };
   return useMutation({
     mutationFn: (jobId: string) => cancelJob(jobId),
@@ -632,6 +637,29 @@ export function useReleaseJob(jobId: string | null) {
     refetchInterval: (query) => {
       const state = query.state.data?.state;
       return state !== undefined && isReleaseJobTerminal(state) ? false : 2000;
+    },
+    enabled,
+  });
+}
+
+/**
+ * 通用任务队列（`GET /api/v1/admin/jobs`，新→旧）。
+ *
+ * 有非终态任务时 2s 轮询，全部结束就停；拉取失败时 5s 重试（一次抖动不应该让「在飞任务」
+ * 永久停在旧状态 —— 与 `useReleaseJobs` 同一取舍）。
+ */
+export function useJobs(query: AdminJobQuery = {}) {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["jobs", query],
+    queryFn: () => fetchJobs(query),
+    refetchInterval: (result) => {
+      if (result.state.status === "error") return 5000;
+      const jobs = result.state.data ?? [];
+      return jobs.some((job) => !isAdminJobTerminal(job.state))
+        ? 2000
+        : false;
     },
     enabled,
   });
