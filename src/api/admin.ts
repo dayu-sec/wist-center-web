@@ -255,6 +255,58 @@ export interface ReleasePackage {
   status: string;
   /** 首次录入时间（包级，取组内最早）。 */
   publishedAt: string;
+  /** 包内 `compat.json`（声明的兼容范围）；没有声明 → null。 */
+  compat: CompatManifest | null;
+  /** 按**当前中心版本**算出的兼容性报告；老后端 / 未检查 → null。 */
+  compatibility: CompatReport | null;
+}
+
+/** 兼容性结论（与 `wist-release::compat::CompatStatus` 同值）。 */
+export type CompatStatus = "ok" | "warn" | "error" | "unknown";
+
+/** 单条检查的严重级别。 */
+export type CompatSeverity = "ok" | "warn" | "error";
+
+/** 一条具体检查：某个 peer 的声明范围 vs 当前实际版本。 */
+export interface CompatCheck {
+  /** 被检查的包（组件名）。 */
+  package: string;
+  version: string;
+  /** 对端组件名；无声明时是 `*`。 */
+  peer: string;
+  /** 声明的范围；无声明时是 `*`。 */
+  required: string;
+  /** 当前实际版本；拿不到时为空串。 */
+  actual: string;
+  ok: boolean;
+  severity: CompatSeverity;
+  /** 可读结论（页面直接展示这句话）。 */
+  message: string;
+}
+
+/** 一次兼容性检查的完整报告（可直接渲染）。 */
+export interface CompatReport {
+  status: CompatStatus;
+  checkedAt: string;
+  /** 检查时掌握的 peer 版本（`component → version`）。 */
+  current: Record<string, string>;
+  checks: CompatCheck[];
+}
+
+/** 包内 `compat.json`：**声明的**兼容范围（发布侧填，中心原样带出）。 */
+export interface CompatManifest {
+  component: string;
+  version: string;
+  /** 上游 / 管理器必须满足的范围。 */
+  requires: Record<string, string>;
+  /** 能服务的下游范围（不满足只告警）。 */
+  supports: Record<string, string>;
+  /** 混合版本期间可共存的范围（配合 `compatMode`）。 */
+  coexistsWith: Record<string, string>;
+  compatMode: boolean;
+  /** 需要“旧+新都能谈”的中间版本。 */
+  bridge: string[];
+  reversible: boolean;
 }
 
 /** 灰度发布计划里的一个阶段（模型 `Control.Rollout.RolloutPhase`）。 */
@@ -859,7 +911,7 @@ function normalizeReleaseArtifact(payload: any): ReleaseArtifact {
   };
 }
 
-function normalizePackage(payload: any): ReleasePackage {
+export function normalizePackage(payload: any): ReleasePackage {
   const rawArtifacts = pick(payload, "artifacts");
   return {
     component: optionalString(pick(payload, "component")) ?? "",
@@ -872,6 +924,88 @@ function normalizePackage(payload: any): ReleasePackage {
       pick(payload, "published_at", "publishedAt"),
       "release.publishedAt",
     ),
+    compat: normalizeCompatManifest(pick(payload, "compat")),
+    compatibility: normalizeCompatReport(
+      pick(payload, "compatibility", "compatibility_report"),
+    ),
+  };
+}
+
+/** `component → range` 这种平表；缺 / 不是对象 → 空表（不让缺字段把整行读失败）。 */
+function normalizeStringMap(payload: unknown): Record<string, string> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {};
+  }
+  const map: Record<string, string> = {};
+  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+    if (value === null || value === undefined) continue;
+    map[key] = String(value);
+  }
+  return map;
+}
+
+const COMPAT_STATUSES: readonly CompatStatus[] = [
+  "ok",
+  "warn",
+  "error",
+  "unknown",
+];
+
+/** 包内 `compat.json` → 视图类型；没有 / 不是对象 → null。 */
+export function normalizeCompatManifest(
+  payload: unknown,
+): CompatManifest | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const bridge = record.bridge;
+  return {
+    component: optionalString(record.component) ?? "",
+    version: optionalString(record.version) ?? "",
+    requires: normalizeStringMap(record.requires),
+    supports: normalizeStringMap(record.supports),
+    coexistsWith: normalizeStringMap(
+      record.coexists_with ?? record.coexistsWith,
+    ),
+    compatMode: record.compat_mode === true || record.compatMode === true,
+    bridge: Array.isArray(bridge) ? bridge.map((item) => String(item)) : [],
+    reversible: record.reversible === true,
+  };
+}
+
+/** 兼容性报告 → 视图类型；缺 `status` 视为「未检查」→ null（不臆造 ok）。 */
+export function normalizeCompatReport(payload: unknown): CompatReport | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const status = optionalString(record.status) as CompatStatus | null;
+  if (!status || !COMPAT_STATUSES.includes(status)) return null;
+  const rawChecks = record.checks;
+  return {
+    status,
+    checkedAt:
+      optionalString(record.checked_at ?? record.checkedAt) ?? "",
+    current: normalizeStringMap(record.current),
+    checks: Array.isArray(rawChecks)
+      ? rawChecks
+          .filter((item) => item && typeof item === "object")
+          .map((item) => {
+            const check = item as Record<string, unknown>;
+            return {
+              package: optionalString(check.package) ?? "",
+              version: optionalString(check.version) ?? "",
+              peer: optionalString(check.peer) ?? "",
+              required: optionalString(check.required) ?? "",
+              actual: optionalString(check.actual) ?? "",
+              ok: check.ok === true,
+              severity: (optionalString(check.severity) ??
+                "warn") as CompatSeverity,
+              message: optionalString(check.message) ?? "",
+            };
+          })
+      : [],
   };
 }
 
@@ -1817,6 +1951,34 @@ function exampleReleases(component: string): ReleasePackage[] {
       ],
       status: "published",
       publishedAt: new Date().toISOString(),
+      // 示例也要把「兼容范围 + 检查结果」的形状展示出来（后端接入后自动换成真数据）。
+      compat: {
+        component,
+        version: "v2.4.1",
+        requires: { "wist-gateway": ">=0.9.0 <0.10.0" },
+        supports: { [component]: ">=0.1.12" },
+        coexistsWith: { "wist-gateway": ">=0.8.0" },
+        compatMode: true,
+        bridge: [],
+        reversible: false,
+      },
+      compatibility: {
+        status: "warn",
+        checkedAt: new Date().toISOString(),
+        current: { "wist-gateway": "0.8.6" },
+        checks: [
+          {
+            package: component,
+            version: "v2.4.1",
+            peer: "wist-gateway",
+            required: ">=0.9.0 <0.10.0",
+            actual: "0.8.6",
+            ok: false,
+            severity: "warn",
+            message: "`wist-gateway` 0.8.6 不在 `>=0.9.0 <0.10.0` 内（兼容模式下可共存）",
+          },
+        ],
+      },
     },
   ];
 }

@@ -10,7 +10,7 @@ WistCenter 子系统的浏览器端 WEB 前端（Jumo `module<ui> InsightCenterW
 | `/gateways/:gatewayId` | 网关详情（状态 / 生命周期 / Agent / 手动升级脚本） | ViewGatewayStatus |
 | `/instance` | 网关管理（实例总览 + 创建） | CreateGatewayInstance / BindGatewayCustomer |
 | `/instance/:gatewayId` | 实例详情（接入材料 / 生命周期） | GetInitialConfig |
-| `/packages` | 安装包管理（中心托管包列表 / 状态 / 组件快筛） | — |
+| `/packages` | 安装包管理（中心托管包列表 / 状态 / 组件快筛 / **兼容范围与检查结果**） | — |
 | `/packages/add` | 安装包录入（按组件录入镜像制品；提交后异步下载，任务状态可查） | — |
 | `/release` | 发布计划 | PublishWistAgentd / PublishWarpGateWay |
 | `/release/execute` | 发布执行（最新 5 条；执行记录 / 已归档；终结计划可归档 / 删除，支持清理失败记录） | ApproveUpgradePlan |

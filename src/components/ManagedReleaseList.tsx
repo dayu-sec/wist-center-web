@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { useAllReleases, useSetReleaseStatus } from "../hooks";
 import type { PackageTarget } from "./PackagePanel";
+import { CompatibilityBadge, CompatibilityDetail } from "./Compatibility";
+import { compatSummary } from "./compatReport";
 import {
   Badge,
   ErrorBanner,
@@ -37,6 +39,8 @@ export function ManagedReleaseList({
   const expiredCount = data.length - activeCount;
   const [tab, setTab] = useState<"active" | "expired">("active");
   const [componentFilter, setComponentFilter] = useState<string>("all");
+  // 展开的兼容性详情：key = `component/version`（一行一个包，version 在内已唯一）。
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   // 状态 tab 先收窄，组件快捷筛选再在其结果上收窄；两层条件是叠加的。
   const statusRecords = data.filter((record) =>
@@ -193,6 +197,7 @@ export function ManagedReleaseList({
                   <span>版本</span>
                   <span>平台</span>
                   <span>状态</span>
+                  <span>兼容性</span>
                   <span>录入时间</span>
                   <span>操作</span>
                 </div>
@@ -202,64 +207,89 @@ export function ManagedReleaseList({
                     setStatus.isPending &&
                     setStatus.variables?.component === record.component &&
                     setStatus.variables?.version === record.version;
+                  const rowKey = `${record.component}/${record.version}`;
+                  const detailOpen = expanded === rowKey;
                   return (
-                    <div
-                      key={`${record.component}/${record.version}/${index}`}
-                      className={styles.row}
-                    >
-                      <strong className={styles.component}>
-                        {nameByComponent.get(record.component) ??
-                          record.component}
-                      </strong>
-                      <span className={styles.version}>{record.version}</span>
-                      <span className={styles.platform}>
-                        {record.artifacts.length === 0 ? (
-                          <span className={styles.platformChip}>
-                            {platformLabel(null)}
-                          </span>
-                        ) : (
-                          record.artifacts.map((artifact, artifactIndex) => (
-                            <span
-                              key={`${artifact.platform ?? "none"}/${artifactIndex}`}
-                              className={styles.platformChip}
-                            >
-                              {platformLabel(artifact.platform)}
+                    <Fragment key={`${rowKey}/${index}`}>
+                      <div className={styles.row}>
+                        <strong className={styles.component}>
+                          {nameByComponent.get(record.component) ??
+                            record.component}
+                        </strong>
+                        <span className={styles.version}>{record.version}</span>
+                        <span className={styles.platform}>
+                          {record.artifacts.length === 0 ? (
+                            <span className={styles.platformChip}>
+                              {platformLabel(null)}
                             </span>
-                          ))
-                        )}
-                      </span>
-                      <span className={styles.status}>
-                        <Badge tone={releaseStatusTone(record.status)}>
-                          {releaseStatusLabel(record.status)}
-                        </Badge>
-                        {record.source === "example" ? <ExampleTag /> : null}
-                      </span>
-                      <span className={styles.time}>
-                        {formatDateTime(record.publishedAt)}
-                      </span>
-                      <span className={styles.action}>
-                        <button
-                          type="button"
-                          className={`${styles.actionButton} ${
-                            expired ? styles.actionButtonRestore : ""
-                          }`}
-                          disabled={pending}
-                          onClick={() =>
-                            setStatus.mutate({
-                              component: record.component,
-                              version: record.version,
-                              status: expired ? "published" : "expired",
-                            })
-                          }
-                        >
-                          {pending
-                            ? "处理中…"
-                            : expired
-                              ? "恢复在用"
-                              : "标记过期"}
-                        </button>
-                      </span>
-                    </div>
+                          ) : (
+                            record.artifacts.map((artifact, artifactIndex) => (
+                              <span
+                                key={`${artifact.platform ?? "none"}/${artifactIndex}`}
+                                className={styles.platformChip}
+                              >
+                                {platformLabel(artifact.platform)}
+                              </span>
+                            ))
+                          )}
+                        </span>
+                        <span className={styles.status}>
+                          <Badge tone={releaseStatusTone(record.status)}>
+                            {releaseStatusLabel(record.status)}
+                          </Badge>
+                          {record.source === "example" ? <ExampleTag /> : null}
+                        </span>
+                        <span className={styles.compat}>
+                          <button
+                            type="button"
+                            className={styles.compatToggle}
+                            aria-expanded={detailOpen}
+                            onClick={() =>
+                              setExpanded(detailOpen ? null : rowKey)
+                            }
+                            title="声明的兼容范围 + 检查结果"
+                          >
+                            <CompatibilityBadge report={record.compatibility} />
+                            <span className={styles.compatSummary}>
+                              {compatSummary(record.compatibility)}
+                            </span>
+                          </button>
+                        </span>
+                        <span className={styles.time}>
+                          {formatDateTime(record.publishedAt)}
+                        </span>
+                        <span className={styles.action}>
+                          <button
+                            type="button"
+                            className={`${styles.actionButton} ${
+                              expired ? styles.actionButtonRestore : ""
+                            }`}
+                            disabled={pending}
+                            onClick={() =>
+                              setStatus.mutate({
+                                component: record.component,
+                                version: record.version,
+                                status: expired ? "published" : "expired",
+                              })
+                            }
+                          >
+                            {pending
+                              ? "处理中…"
+                              : expired
+                                ? "恢复在用"
+                                : "标记过期"}
+                          </button>
+                        </span>
+                      </div>
+                      {detailOpen ? (
+                        <div className={styles.detailRow}>
+                          <CompatibilityDetail
+                            manifest={record.compat}
+                            report={record.compatibility}
+                          />
+                        </div>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </div>

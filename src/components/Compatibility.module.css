@@ -1,0 +1,174 @@
+/* 兼容性展示：列表行的徽标在 ManagedReleaseList 的网格里，详情面板跨整行。
+   颜色只引用令牌：ok=绿 / warn=黄 / error=红 / unknown=灰。 */
+
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 18px;
+  padding: 12px 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+@media (max-width: 900px) {
+  .panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.columnHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.checkedAt {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+
+.rangeRow,
+.currentRow {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 11.5px;
+}
+
+.rangeLabel {
+  color: var(--text-4);
+  line-height: 1.6;
+}
+
+.rangeValues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rangeChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.rangePeer {
+  color: var(--text-2);
+}
+
+.rangeValue {
+  color: var(--text-3);
+}
+
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.flag {
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+
+.flagOn {
+  border-color: var(--ok-border);
+  color: var(--ok);
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+
+.severity_ok {
+  border-left-color: var(--ok);
+}
+
+.severity_warn {
+  border-left-color: var(--warn);
+}
+
+.severity_error {
+  border-left-color: var(--crit);
+}
+
+.severityTag {
+  color: var(--text-4);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.severity_ok .severityTag {
+  color: var(--ok);
+}
+
+.severity_warn .severityTag {
+  color: var(--warn);
+}
+
+.severity_error .severityTag {
+  color: var(--crit);
+}
+
+.checkMessage {
+  color: var(--text-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.checkDetail {
+  grid-column: 2;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.6;
+}

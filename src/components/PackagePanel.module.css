@@ -393,6 +393,51 @@
   background: var(--bg-elevated);
 }
 
+/* 一条录入历史 = 行（版本 / 制品 / 状态·兼容·时间）+ 可展开的兼容性详情。 */
+.historyEntry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.historyCompat {
+  padding: 0 2px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.historyCompatSummary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-4);
+  font-size: 10.5px;
+}
+
+.historyCompatSummary::-webkit-details-marker {
+  display: none;
+}
+
+.historyCompat[open] .historyCompatSummary {
+  margin-bottom: 6px;
+  color: var(--text-3);
+}
+
+/* 录入回执里的兼容性一行 + 下面的详情面板。 */
+.receiptCompat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.receiptCompatText {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.receiptCompatDetail {
+  margin-top: 10px;
+}
+
 .historyVersion {
   color: var(--text);
   font-family: var(--font-mono);

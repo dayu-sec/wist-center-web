@@ -112,7 +112,7 @@
   color: var(--text-3);
 }
 
-/* 已托管包汇总列表：组件 / 版本 / 平台 / 状态 / 录入时间 / 操作 六列。 */
+/* 已托管包汇总列表：组件 / 版本 / 平台 / 状态 / 兼容性 / 录入时间 / 操作 七列。 */
 .list {
   display: flex;
   flex-direction: column;
@@ -123,8 +123,8 @@
 .row {
   display: grid;
   grid-template-columns:
-    minmax(110px, 0.9fr) minmax(90px, 0.8fr) minmax(120px, 1.3fr)
-    minmax(120px, 0.9fr) minmax(90px, 0.7fr) auto;
+    minmax(104px, 0.9fr) minmax(84px, 0.75fr) minmax(110px, 1.2fr)
+    minmax(104px, 0.85fr) minmax(140px, 1.1fr) minmax(84px, 0.65fr) auto;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -194,6 +194,54 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* 兼容性：徽标 + 一句话摘要，整块是展开详情的按钮（行内不再另加“详情”按钮）。 */
+.compat {
+  display: flex;
+  min-width: 0;
+}
+
+.compatToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.compatToggle:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.compatToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.compatToggle[aria-expanded="true"] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.compatSummary {
+  overflow: hidden;
+  color: var(--text-4);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 详情面板跨整行（.list 是纵向 flex，这里是独立一块，不参与上面的网格）。 */
+.detailRow {
+  min-width: 0;
 }
 
 .action {

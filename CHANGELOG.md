@@ -5,6 +5,21 @@
 
 > 说明：0.1.3 之前未单独维护本文件；自 0.1.3 起记录。
 
+## [0.21.0-alpha] - 2026-10-29
+
+### 新增（包管理：兼容范围与检查结果）
+
+- **`/packages` 新增「兼容性」列**：`兼容 / 有告警 / 不兼容 / 未验证` 徽标 + 一句话摘要；
+  点开看包内 `compat.json` 声明的 `requires` / `supports` / `coexists_with`，以及按**当前中心版本**
+  算出的逐条检查（peer / 要求 / 实际 + 后端原话）。包录入回执与「最近录入」同样带。
+- `ReleasePackage` 新增 `compat` / `compatibility`（后端 `wist-center` 0.24.x 起返回；
+  老后端缺字段时显示「未检查」，不会把列表读挂）。
+- 接口层新增 `CompatManifest` / `CompatReport` / `CompatCheck` 与 `normalizeCompatReport`
+  （snake_case → camelCase；未知 `status` 归 `null`，不臆造 `ok`）。
+
+口径：`unknown`（包内没声明）是**灰色「未验证」**，不显示成绿色「兼容」；只有 `requires` 被
+违反才是红色阻断。
+
 ## [0.20.0-alpha] - 2026-10-28
 
 ### 新增

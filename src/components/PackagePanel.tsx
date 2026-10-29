@@ -15,6 +15,11 @@ import {
   validateSingleArtifact,
 } from "../packageForm";
 import {
+  CompatibilityBadge,
+  CompatibilityDetail,
+} from "./Compatibility";
+import { compatSummary } from "./compatReport";
+import {
   useCancelJob,
   usePackageLatest,
   usePackageSources,
@@ -996,38 +1001,57 @@ function DownloadJobsSection({ jobs }: { jobs: ReleaseDownloadJob[] }) {
   );
 }
 
-/** 一次录入回执：一个安装包（版本 + 多平台制品）。 */
+/** 一次录入回执：一个安装包（版本 + 多平台制品）+ 兼容性。 */
 function ReleaseReceipt({ release }: { release: ReleasePackage }) {
   return (
-    <ReceiptCard
-      title="本次提交回执"
-      fields={[
-        ["版本", release.version],
-        ["状态", releaseStatusLabel(release.status)],
-        ["制品数", String(release.artifacts.length)],
-        [
-          "制品",
-          <ul className={styles.receiptArtifacts}>
-            {release.artifacts.map((artifact, index) => (
-              <li key={`${artifact.platform ?? "none"}/${index}`}>
-                <code className={styles.historyPlatform}>
-                  {platformLabel(artifact.platform)}
-                </code>{" "}
-                <a
-                  className={styles.artifactLink}
-                  href={artifact.source}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {artifact.source}
-                </a>
-              </li>
-            ))}
-          </ul>,
-        ],
-        ["提交时间", formatDateTime(release.publishedAt)],
-      ]}
-    />
+    <>
+      <ReceiptCard
+        title="本次提交回执"
+        fields={[
+          ["版本", release.version],
+          ["状态", releaseStatusLabel(release.status)],
+          [
+            "兼容性",
+            <span className={styles.receiptCompat}>
+              <CompatibilityBadge report={release.compatibility} />
+              <span className={styles.receiptCompatText}>
+                {compatSummary(release.compatibility)}
+              </span>
+            </span>,
+          ],
+          ["制品数", String(release.artifacts.length)],
+          [
+            "制品",
+            <ul className={styles.receiptArtifacts}>
+              {release.artifacts.map((artifact, index) => (
+                <li key={`${artifact.platform ?? "none"}/${index}`}>
+                  <code className={styles.historyPlatform}>
+                    {platformLabel(artifact.platform)}
+                  </code>{" "}
+                  <a
+                    className={styles.artifactLink}
+                    href={artifact.source}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {artifact.source}
+                  </a>
+                </li>
+              ))}
+            </ul>,
+          ],
+          ["提交时间", formatDateTime(release.publishedAt)],
+        ]}
+      />
+      {release.compat || release.compatibility ? (
+        <div className={styles.receiptCompatDetail}>
+          <CompatibilityDetail
+            manifest={release.compat}
+            report={release.compatibility}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1052,11 +1076,12 @@ function HistorySection({
           {releases.map((record, index) => (
             <div
               key={`${record.version}/${index}`}
-              className={styles.historyItem}
+              className={styles.historyEntry}
             >
-              <strong className={styles.historyVersion}>
-                {record.version}
-              </strong>
+              <div className={styles.historyItem}>
+                <strong className={styles.historyVersion}>
+                  {record.version}
+                </strong>
               <div className={styles.historyArtifacts}>
                 {record.artifacts.length === 0 ? (
                   <span className={styles.historyArtifactEmpty}>
@@ -1087,8 +1112,19 @@ function HistorySection({
                 <Badge tone={releaseStatusTone(record.status)}>
                   {releaseStatusLabel(record.status)}
                 </Badge>
+                <CompatibilityBadge report={record.compatibility} />
                 {formatDateTime(record.publishedAt)}
               </span>
+              </div>
+              <details className={styles.historyCompat}>
+                <summary className={styles.historyCompatSummary}>
+                  兼容性（{compatSummary(record.compatibility)}）
+                </summary>
+                <CompatibilityDetail
+                  manifest={record.compat}
+                  report={record.compatibility}
+                />
+              </details>
             </div>
           ))}
         </div>

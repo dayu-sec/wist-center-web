@@ -43,6 +43,10 @@ jobs:
       - name: Test (release components)
         run: npm run test:release-components
 
+      # 包管理的兼容性展示：snake_case 映射 / 缺字段不报错 / unknown 不得显示成兼容。
+      - name: Test (release compat contract)
+        run: npm run test:release-compat
+
       # 安装包来源：录入页「按版本号检查」拼 URL 的配置（字段名 / 归一化 / 空配置）。
       - name: Test (package sources contract)
         run: npm run test:package-sources
