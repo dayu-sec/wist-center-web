@@ -2389,17 +2389,23 @@ export interface PackageLatestView {
 /**
  * 自动探测某组件的最新版本：GitHub 列 releases；只配了 COS 时从 `baseVersion` 往后探测。
  *
+ * `useProxy`：录入页的「经镜像通道」勾选框。`false` = 直连（即使配了通道），`true` = 必须走通道
+ * （后端没配则 400），不传 = 按来源配置。
+ *
  * 返回 `up_to_date` 时 `assets` 为空；新版本则直接带齐解析好的制品，页面可一键填表。
  */
 export async function fetchPackageLatest(
   component: string,
   baseVersion?: string,
   source?: "github" | "cos",
+  useProxy?: boolean,
 ): Promise<PackageLatestView> {
   const params = new URLSearchParams({ component });
   const base = baseVersion?.trim();
   if (base) params.set("base_version", base);
   if (source) params.set("source", source);
+  // 勾选框：显式带 use_proxy=true/false；页面不传时省略 = 按来源配置（与以前一致）。
+  if (useProxy !== undefined) params.set("use_proxy", String(useProxy));
   const raw = await requestJson<any>(
     `/api/v1/admin/package-sources/latest?${params.toString()}`,
   );
@@ -2452,14 +2458,19 @@ export async function fetchPackageSources(): Promise<PackageSourceView[]> {
 /**
  * 解析 GitHub Release 页面地址：拉出 tag（版本）与各平台制品地址（含 sha256），供录入页一键填充。
  *
+ * `useProxy` 同 {@link fetchPackageLatest}：录入页「经镜像通道」勾选框。
+ *
  * **刻意不回落示例**：这是解析请求，失败要冒出来。
  */
 export async function resolveGitHubRelease(
   releaseUrl: string,
+  useProxy?: boolean,
 ): Promise<ResolvedGitHubRelease> {
+  const body: Record<string, unknown> = { release_url: releaseUrl };
+  if (useProxy !== undefined) body.use_proxy = useProxy;
   const raw = await requestJson<any>("/api/v1/admin/github-release/resolve", {
     method: "POST",
-    body: JSON.stringify({ release_url: releaseUrl }),
+    body: JSON.stringify(body),
   });
   return normalizeResolvedRelease(raw);
 }

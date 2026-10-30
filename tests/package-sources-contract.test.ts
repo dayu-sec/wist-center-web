@@ -21,6 +21,7 @@ interface Recorded {
   url: string;
   method: string;
   authorization: string;
+  body: string;
 }
 
 let recorded: Recorded[] = [];
@@ -52,13 +53,18 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     url: input.toString(),
     method: (init?.method ?? "GET").toUpperCase(),
     authorization: headers.get("authorization") ?? "",
+    body: typeof init?.body === "string" ? init.body : "",
   });
   return responder();
 };
 
 const { composePackageSourceUrl } = await import("../src/components/packageSourceUrl");
-const { fetchPackageLatest, fetchPackageSources, setAdminApiToken } =
-  await import("../src/api/admin");
+const {
+  fetchPackageLatest,
+  fetchPackageSources,
+  resolveGitHubRelease,
+  setAdminApiToken,
+} = await import("../src/api/admin");
 setAdminApiToken(TOKEN);
 
 function check(ok: boolean, message: string): void {
@@ -160,6 +166,47 @@ const upToDate = await fetchPackageLatest("wist-agentd", "v0.5.0-alpha", "github
 check(
   upToDate.upToDate === true && upToDate.assets.length === 0,
   "up_to_date 形态应保留空 assets",
+);
+
+// 勾选框（经镜像通道）：显式带 use_proxy，不传就不带（后端按来源配置）。
+recorded = [];
+await fetchPackageLatest("wist-agentd", undefined, "github", false);
+check(
+  recorded[0].url ===
+    "/api/v1/admin/package-sources/latest?component=wist-agentd&source=github&use_proxy=false",
+  `取消勾选应带 use_proxy=false：${recorded[0].url}`,
+);
+recorded = [];
+await fetchPackageLatest("wist-agentd", undefined, "github", true);
+check(
+  recorded[0].url ===
+    "/api/v1/admin/package-sources/latest?component=wist-agentd&source=github&use_proxy=true",
+  `勾选应带 use_proxy=true：${recorded[0].url}`,
+);
+recorded = [];
+await fetchPackageLatest("wist-agentd", undefined, "github");
+check(
+  !recorded[0].url.includes("use_proxy"),
+  `不传勾选框时不应带 use_proxy：${recorded[0].url}`,
+);
+
+// 手工粘贴地址的解析：use_proxy 同样要传进 body（不传就不带）。
+recorded = [];
+await resolveGitHubRelease(
+  "https://github.com/dayu-sec/wist-agentd/releases/tag/v0.5.0-alpha",
+  false,
+);
+check(
+  JSON.parse(recorded[0].body).use_proxy === false,
+  `解析 body 应带 use_proxy=false：${recorded[0].body}`,
+);
+recorded = [];
+await resolveGitHubRelease(
+  "https://github.com/dayu-sec/wist-agentd/releases/tag/v0.5.0-alpha",
+);
+check(
+  !("use_proxy" in JSON.parse(recorded[0].body)),
+  `不传勾选框时 body 不应带 use_proxy：${recorded[0].body}`,
 );
 
 // 版本号 + 配置 → 解析接口地址（页面「检查 URL」拼的就是它）。

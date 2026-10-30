@@ -336,12 +336,20 @@ export function usePackageLatest(
   component: string,
   baseVersion?: string,
   source?: "github" | "cos",
+  useProxy?: boolean,
 ) {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken()) && Boolean(component);
   return useQuery({
-    queryKey: ["package-latest", component, baseVersion ?? "", source ?? ""],
-    queryFn: () => fetchPackageLatest(component, baseVersion, source),
+    queryKey: [
+      "package-latest",
+      component,
+      baseVersion ?? "",
+      source ?? "",
+      // 勾选框也是查询条件：切换后要重新探测（不能吃旧结果）。
+      useProxy === undefined ? "" : String(useProxy),
+    ],
+    queryFn: () => fetchPackageLatest(component, baseVersion, source, useProxy),
     enabled,
     staleTime: 2 * 60_000,
     retry: false,
@@ -668,7 +676,8 @@ export function useJobs(query: AdminJobQuery = {}) {
 /** 解析 GitHub Release（拉 tag + 多平台制品地址），供录入页一键填充。非写操作，不刷新缓存。 */
 export function useResolveGitHubRelease() {
   return useMutation({
-    mutationFn: (releaseUrl: string) => resolveGitHubRelease(releaseUrl),
+    mutationFn: (vars: { releaseUrl: string; useProxy?: boolean }) =>
+      resolveGitHubRelease(vars.releaseUrl, vars.useProxy),
   });
 }
 

@@ -179,6 +179,37 @@
   font-size: 11px;
 }
 
+/* 「经镜像通道 <通道>」勾选框：整行可点，右侧用小字说清这次是走通道还是直连。 */
+.proxyToggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.proxyToggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.proxyToggle code {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.proxyHint {
+  color: var(--text-4);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
 /* 「或直接粘贴地址 / 返回按版本号检查」：文字链接，不占一个按钮的位置。 */
 .resolveLink {
   padding: 0;

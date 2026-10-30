@@ -344,11 +344,17 @@ function ResolveSourceField({
   );
   const githubRepo = configured?.githubRepo ?? null;
   const githubConfigured = Boolean(githubRepo);
-  // 镜像通道：有值 = 解析出来的制品地址会走它（写进发布记录的就是镜像地址，与 COS 同一套逻辑）。
+  // 镜像通道：有值 = 这个组件配了通道；是否**本次走它**由下面的勾选框决定。
   const githubProxy = configured?.githubProxy ?? null;
   const cosConfigured = Boolean(configured?.cosBucket && configured?.cosPrefix);
 
   const [source, setSource] = useState<ResolveSource>("github");
+  // 勾选框：默认跟随配置（配了通道就先勾上，保持以前的默认行为），操作者可取消走直连。
+  // 没配通道的组件不渲染勾选框，也不传参（= 后端按配置，即直连）。
+  const [useProxy, setUseProxy] = useState(Boolean(githubProxy));
+  useEffect(() => {
+    setUseProxy(Boolean(githubProxy));
+  }, [githubProxy]);
   // 配置是异步到的：只配了 COS 的组件把默认来源切到 COS。
   useEffect(() => {
     setSource((current) => {
@@ -362,10 +368,16 @@ function ResolveSourceField({
 
   const sourceConfigured =
     source === "github" ? githubConfigured : cosConfigured;
+  // 勾选框只在「GitHub 侧真能用」时出现：配了仓库（能按版本号拼地址）且配了通道。
+  // 只配了 COS 的组件即使写了 github_proxy 也用不上（GitHub 地址拼不出来）。
+  // 只有 GitHub 侧、且真的能用通道时才把勾选框的值告诉服务端；COS / 不可用时省略（= 后端按配置）。
+  const proxyUsable = githubConfigured && Boolean(githubProxy);
+  const proxyParam = source === "github" && proxyUsable ? useProxy : undefined;
   const latest = usePackageLatest(
     sourceConfigured ? component : "",
     latestVersion,
     source,
+    proxyParam,
   );
 
   const [version, setVersion] = useState(latestVersion ?? "");
@@ -382,7 +394,10 @@ function ResolveSourceField({
   // 操作者一旦手动改过版本号/地址，后续自动探测就不许再覆盖表单。
   const [userTouched, setUserTouched] = useState(false);
 
-  const resolve = source === "github" ? githubResolve : cosResolve;
+  const resolvePending =
+    source === "github" ? githubResolve.isPending : cosResolve.isPending;
+  const resolveError =
+    source === "github" ? githubResolve.error : cosResolve.error;
   const composed = composePackageSourceUrl(configured, source, version);
   const useManual = manual || !sourceConfigured;
 
@@ -409,12 +424,17 @@ function ResolveSourceField({
   function handleResolve() {
     const value = (useManual ? sourceInput : composed).trim();
     if (!value) return;
-    resolve.mutate(value, {
-      onSuccess: (result) => {
-        setUserTouched(true);
-        setResolveNote(onResolved(result));
-      },
-    });
+    const onDone = (result: ResolvedGitHubRelease) => {
+      setUserTouched(true);
+      setResolveNote(onResolved(result));
+    };
+    if (source === "github") {
+      githubResolve.mutate({ releaseUrl: value, useProxy: proxyParam }, {
+        onSuccess: onDone,
+      });
+      return;
+    }
+    cosResolve.mutate(value, { onSuccess: onDone });
   }
 
   // 只取服务端的 `detail`（如 "the recorded version was not found …"），不要把整条 URL 甩给用户。
@@ -466,12 +486,30 @@ function ResolveSourceField({
         ))}
       </div>
 
-      {/* 探活目标仍是 github.com 的 release 页；镜像只影响**解析出来的制品地址**，得说清楚。 */}
-      {source === "github" && githubProxy ? (
-        <p className={styles.resolveTarget}>
-          制品走镜像通道 <code>{githubProxy}</code>：解析出的下载地址会写成{" "}
-          <code>{`${githubProxy}/https://github.com/...`}</code>
-        </p>
+      {/* 通道是可选项：GitHub 侧可用且配了通道才出现勾选框。勾上 = 解析出的 artifact_url 写成
+          `<通道>/<github 地址>`；取消 = 直连 github.com（探活目标一直是 github.com 的 release 页）。 */}
+      {source === "github" && proxyUsable && githubProxy ? (
+        <label className={styles.proxyToggle}>
+          <input
+            type="checkbox"
+            checked={useProxy}
+            onChange={(event) => {
+              setUseProxy(event.target.checked);
+              // 换通道要重新探测：别把上一次那套（镜像/直连）地址继续留在表单里。
+              setUserTouched(false);
+              setAutoFilled(null);
+              setResolveNote(null);
+            }}
+          />
+          <span>
+            经镜像通道 <code>{githubProxy}</code>
+          </span>
+          <span className={styles.proxyHint}>
+            {useProxy
+              ? `解析出的下载地址会写成 ${githubProxy}/https://github.com/...`
+              : "直连 github.com"}
+          </span>
+        </label>
       ) : null}
 
       {!useManual ? (
@@ -542,9 +580,9 @@ function ResolveSourceField({
                   type="button"
                   className={styles.resolveButton}
                   onClick={handleResolve}
-                  disabled={resolve.isPending || !composed}
+                  disabled={resolvePending || !composed}
                 >
-                  {resolve.isPending ? "检查中…" : "检查 URL"}
+                  {resolvePending ? "检查中…" : "检查 URL"}
                 </button>
               </div>
               <p className={styles.resolveTarget}>
@@ -584,9 +622,9 @@ function ResolveSourceField({
               type="button"
               className={styles.resolveButton}
               onClick={handleResolve}
-              disabled={resolve.isPending || !sourceInput.trim()}
+              disabled={resolvePending || !sourceInput.trim()}
             >
-              {resolve.isPending ? "解析中…" : "解析并填充"}
+              {resolvePending ? "解析中…" : "解析并填充"}
             </button>
           </div>
           {sourceConfigured ? (
@@ -603,8 +641,8 @@ function ResolveSourceField({
         </div>
       )}
 
-      {resolve.error ? (
-        <ErrorBanner>解析失败：{String(resolve.error)}</ErrorBanner>
+      {resolveError ? (
+        <ErrorBanner>解析失败：{String(resolveError)}</ErrorBanner>
       ) : null}
       {resolveNote ? <p className={styles.resolveNote}>{resolveNote}</p> : null}
     </>
