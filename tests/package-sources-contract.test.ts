@@ -3,7 +3,7 @@
 // 录入页的「按版本号检查」完全依赖这份配置：拼 URL 的前缀（GitHub owner/repo、COS 桶/前缀）
 // 一旦字段名或形状漂了，页面会退回手工粘贴，而且不会报错。钉住：
 //   1. GET 路径与 Bearer 凭据；
-//   2. snake_case → camelCase（github_repo → githubRepo、cos_bucket → cosBucket…）；
+//   2. snake_case → camelCase（github_repo → githubRepo、github_proxy → githubProxy…）；
 //   3. 缺省/空配置 → 空数组（页面回落到手工地址），不是抛错。
 
 const TOKEN = "admin-token-under-test";
@@ -30,6 +30,7 @@ let responder: () => Response = () =>
       {
         component: "wist-agentd",
         github_repo: "dayu-sec/wist-agentd",
+        github_proxy: "https://githubproxy.cc",
         cos_bucket: "github-1347593047",
         cos_prefix: "wist-agentd",
         cos_region: "ap-hongkong",
@@ -37,6 +38,7 @@ let responder: () => Response = () =>
       {
         component: "galaxy-ops",
         github_repo: "galaxio-labs/galaxy-ops",
+        github_proxy: null,
         cos_bucket: null,
         cos_prefix: "galaxy-ops",
         cos_region: null,
@@ -79,6 +81,7 @@ const [agentd, galaxy] = sources;
 check(
   agentd.component === "wist-agentd" &&
     agentd.githubRepo === "dayu-sec/wist-agentd" &&
+    agentd.githubProxy === "https://githubproxy.cc" &&
     agentd.cosBucket === "github-1347593047" &&
     agentd.cosPrefix === "wist-agentd" &&
     agentd.cosRegion === "ap-hongkong",
@@ -88,6 +91,11 @@ check(
 check(
   galaxy.cosBucket === null && galaxy.cosRegion === null,
   "缺省字段必须归一化为 null",
+);
+// 镜像通道随来源一起下发（页面据此提示「制品走哪个通道」）；未配 = null（直连）。
+check(
+  galaxy.githubProxy === null,
+  `未配置通道应为 null：${JSON.stringify(galaxy)}`,
 );
 
 // 空配置（后端没配 [[packages.sources]]）→ 空数组，页面回落到手工地址。

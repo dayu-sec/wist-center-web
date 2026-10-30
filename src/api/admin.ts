@@ -2360,6 +2360,12 @@ export interface PackageSourceView {
   component: string;
   /** `owner/repo`；未配置为 null。 */
   githubRepo: string | null;
+  /**
+   * GitHub 制品的**镜像 / 加速通道**基地址（如 `https://githubproxy.cc`）；未配置为 null。
+   * 配了它，中心解析 GitHub Release 时会把 `artifact_url` 写成 `<通道>/<github 原地址>`
+   * （与 COS 同理：写进发布记录的就是镜像地址）。
+   */
+  githubProxy: string | null;
   cosBucket: string | null;
   cosPrefix: string | null;
   cosRegion: string | null;
@@ -2431,6 +2437,8 @@ export async function fetchPackageSources(): Promise<PackageSourceView[]> {
       component: String(source?.component ?? ""),
       githubRepo:
         typeof source?.github_repo === "string" ? source.github_repo : null,
+      githubProxy:
+        typeof source?.github_proxy === "string" ? source.github_proxy : null,
       cosBucket:
         typeof source?.cos_bucket === "string" ? source.cos_bucket : null,
       cosPrefix:

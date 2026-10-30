@@ -344,6 +344,8 @@ function ResolveSourceField({
   );
   const githubRepo = configured?.githubRepo ?? null;
   const githubConfigured = Boolean(githubRepo);
+  // 镜像通道：有值 = 解析出来的制品地址会走它（写进发布记录的就是镜像地址，与 COS 同一套逻辑）。
+  const githubProxy = configured?.githubProxy ?? null;
   const cosConfigured = Boolean(configured?.cosBucket && configured?.cosPrefix);
 
   const [source, setSource] = useState<ResolveSource>("github");
@@ -463,6 +465,14 @@ function ResolveSourceField({
           </button>
         ))}
       </div>
+
+      {/* 探活目标仍是 github.com 的 release 页；镜像只影响**解析出来的制品地址**，得说清楚。 */}
+      {source === "github" && githubProxy ? (
+        <p className={styles.resolveTarget}>
+          制品走镜像通道 <code>{githubProxy}</code>：解析出的下载地址会写成{" "}
+          <code>{`${githubProxy}/https://github.com/...`}</code>
+        </p>
+      ) : null}
 
       {!useManual ? (
         <>
