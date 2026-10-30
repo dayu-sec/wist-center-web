@@ -5,6 +5,17 @@
 
 > 说明：0.1.3 之前未单独维护本文件；自 0.1.3 起记录。
 
+## [0.22.0-alpha] - 2026-10-30
+
+### 新增（包管理：展示 GitHub 镜像通道）
+
+- 录入页「GitHub Release」来源下新增一行提示：该组件配了 `[[packages.sources]].github_proxy` 时，
+  显示「制品走镜像通道 `<通道>`：解析出的下载地址会写成 `<通道>/https://github.com/...`」；
+  未配通道（直连）时不显示。探活目标仍是 `github.com` 的 release 页 —— 镜像只影响解析出来的
+  `artifact_url`，与 COS 同一套逻辑。
+- `GET /api/v1/admin/package-sources` 的 `github_proxy` 归一化为 `PackageSourceView.githubProxy`
+  （缺省 `null`）。需中心后端 ≥ `0.26.0-alpha`。
+
 ## [0.21.0-alpha] - 2026-10-29
 
 ### 新增（包管理：兼容范围与检查结果）
