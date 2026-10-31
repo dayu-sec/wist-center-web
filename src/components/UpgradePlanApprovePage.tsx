@@ -6,7 +6,6 @@ import {
 import {
   useAdvanceUpgradePlan,
   useApproveUpgradePlan,
-  useDeletePlan,
   useDeletePlans,
   useRetryUpgradePlan,
   useSetPlanArchived,
@@ -113,14 +112,12 @@ export function UpgradePlanApprovePage() {
   const advance = useAdvanceUpgradePlan();
   const retry = useRetryUpgradePlan();
   const archive = useSetPlanArchived();
-  const remove = useDeletePlan();
   const clearFailed = useDeletePlans();
   const busy =
     approve.isPending ||
     advance.isPending ||
     retry.isPending ||
     archive.isPending ||
-    remove.isPending ||
     clearFailed.isPending;
   // 「清理失败记录」只看**执行记录**里的失败计划（已归档是「留着证据」的那桶，不一起删）；
   // 已归档的失败计划可以逐张卡片删。
@@ -129,13 +126,6 @@ export function UpgradePlanApprovePage() {
   );
   // 重派的回执：新计划就是「补跑计划」，页面要说清「重派成了哪一份」。
   const retried = retry.data?.data ?? null;
-
-  /** 逐条物理删除：不可恢复，必须二次确认（想留证据的请用归档）。 */
-  function handleDelete(planId: string) {
-    const question = `删除执行记录 ${planId} 会把计划和逐目标条目一并物理删除，不可恢复。想留证据请用「归档」。确定删除？`;
-    if (!window.confirm(question)) return;
-    remove.mutate(planId);
-  }
 
   /** 批量清理执行记录里的失败计划（顺序逐条删，单条失败不打断其余）。 */
   function handleClearFailed() {
@@ -148,7 +138,7 @@ export function UpgradePlanApprovePage() {
   return (
     <PageShell
       title="发布执行"
-      summary="批准计划进入第一阶段，或按闸门人工推进到下一阶段（金丝雀段一律人工确认）；已失败的计划可按失败目标重派补跑计划，终结的计划可归档收起或删除清理。"
+      summary="批准计划进入第一阶段，或按闸门人工推进到下一阶段（金丝雀段一律人工确认）；已失败的计划可按失败目标重派补跑计划，终结的计划可归档收起（可恢复）。失败记录仍可在顶部批量清理。"
     >
       {isLoading && plans.length === 0 ? <LoadingDots /> : null}
       {plans.length > 0 ? (
@@ -223,9 +213,6 @@ export function UpgradePlanApprovePage() {
         <ErrorBanner>
           归档失败：{archiveErrorMessage(archive.error)}
         </ErrorBanner>
-      ) : null}
-      {remove.error ? (
-        <ErrorBanner>删除失败：{deleteErrorMessage(remove.error)}</ErrorBanner>
       ) : null}
       {clearFailed.data ? (
         clearFailed.data.failed.length === 0 ? (
@@ -350,19 +337,6 @@ export function UpgradePlanApprovePage() {
                       title="从执行记录里收起（计划和条目全留，可随时取消归档）"
                     >
                       {archivePending ? "处理中…" : "归档"}
-                    </button>
-                  ) : null}
-                  {archivable ? (
-                    <button
-                      type="button"
-                      className={styles.deleteButton}
-                      disabled={busy}
-                      onClick={() => handleDelete(plan.planId)}
-                      title="物理删除（计划与逐目标条目一并删除，不可恢复；想留证据请用归档）"
-                    >
-                      {remove.isPending && remove.variables === plan.planId
-                        ? "删除中…"
-                        : "删除"}
                     </button>
                   ) : null}
                 </div>
