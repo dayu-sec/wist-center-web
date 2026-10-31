@@ -5,6 +5,14 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { ApiError } from "./api";
 import { initTheme } from "./theme";
+import "@fontsource/ibm-plex-sans/latin-400.css";
+import "@fontsource/ibm-plex-sans/latin-500.css";
+import "@fontsource/ibm-plex-sans/latin-600.css";
+import "@fontsource/ibm-plex-sans/latin-700.css";
+import "@fontsource/ibm-plex-mono/latin-400.css";
+import "@fontsource/ibm-plex-mono/latin-500.css";
+import "@fontsource/ibm-plex-mono/latin-600.css";
+import "@fontsource/ibm-plex-mono/latin-700.css";
 import "./index.css";
 
 // 首次渲染**之前**定下主题：晚一步会先按深色画一帧再跳浅色（闪一下）。
