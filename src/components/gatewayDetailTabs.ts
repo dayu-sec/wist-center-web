@@ -4,7 +4,8 @@
 // 整张性能卡。每个分区都是**独立路由**（`/gateways/:id/<tab>`），刷新 / 分享 / 后退
 // 都能回到同一张页，而不是只靠组件内 state。
 
-export type GatewayTab = "overview" | "binding" | "runtime" | "upgrade";
+export type GatewayTab =
+  "overview" | "agents" | "binding" | "runtime" | "upgrade";
 
 export interface GatewayTabItem {
   key: GatewayTab;
@@ -13,7 +14,7 @@ export interface GatewayTabItem {
   to: string;
 }
 
-const TAB_SEGMENTS: GatewayTab[] = ["binding", "runtime", "upgrade"];
+const TAB_SEGMENTS: GatewayTab[] = ["agents", "binding", "runtime", "upgrade"];
 
 /** 路由 → 分区：`/gateways/:id/<tab>`，缺省或认不出的段一律回概览。 */
 export function resolveGatewayTab(pathname: string): GatewayTab {
@@ -27,6 +28,7 @@ export function resolveGatewayTab(pathname: string): GatewayTab {
 export function gatewayTabs(base: string): GatewayTabItem[] {
   return [
     { key: "overview", label: "概览", to: base },
+    { key: "agents", label: "Agent 状态", to: `${base}/agents` },
     { key: "binding", label: "绑定客户", to: `${base}/binding` },
     // 「运行时控制」= 体检 / 重启网关 / 重启 gwlinkd（远端下发，经中心命令队列）。
     { key: "runtime", label: "运行时控制", to: `${base}/runtime` },

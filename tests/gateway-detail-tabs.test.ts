@@ -8,8 +8,8 @@ import {
 // 锁两件事：
 //   1. **路由是唯一真相**：`/gateways/X4/runtime` 这种链接刷新/分享后必须还是那个分区，
 //      认不出的段不能把人挡在白屏 —— 回概览；
-//   2. 「运行时控制」**必须是独立分区**，且绑定/升级各自一格（现场反馈：动作挤在状态页里，
-//      动手前得先滑过整张性能卡）。
+//   2. 「运行时控制」**必须是独立分区**，且 Agent 状态 / 绑定 / 升级各自一格
+//      （现场反馈：动作与 Agent 卡片挤在状态页里）。
 //
 // Usage: npm run test:gateway-detail-tabs
 
@@ -21,6 +21,7 @@ function assert(condition: unknown, message: string): void {
 const cases: [string, string][] = [
   ["/gateways/X4", "overview"],
   ["/gateways/X4/", "overview"],
+  ["/gateways/X4/agents", "agents"],
   ["/gateways/X4/binding", "binding"],
   ["/gateways/X4/runtime", "runtime"],
   ["/gateways/X4/upgrade", "upgrade"],
@@ -35,16 +36,21 @@ for (const [pathname, expected] of cases) {
   );
 }
 
-// 2) tab 列表：四格、顺序固定、路由 = 详情页 + 尾段
+// 2) tab 列表：五格、顺序固定、路由 = 详情页 + 尾段
 const tabs = gatewayTabs("/gateways/X4");
-assert(tabs.length === 4, `应有 4 个分区，实际 ${tabs.length}`);
+assert(tabs.length === 5, `应有 5 个分区，实际 ${tabs.length}`);
 assert(
-  tabs.map((item) => item.key).join(",") === "overview,binding,runtime,upgrade",
-  "分区顺序变了（概览 → 绑定客户 → 运行时控制 → 升级）",
+  tabs.map((item) => item.key).join(",") ===
+    "overview,agents,binding,runtime,upgrade",
+  "分区顺序变了（概览 → Agent 状态 → 绑定客户 → 运行时控制 → 升级）",
 );
 assert(
   tabs.find((item) => item.key === "runtime")?.label === "运行时控制",
   "「运行时控制」必须是一个独立分区",
+);
+assert(
+  tabs.find((item) => item.key === "agents")?.label === "Agent 状态",
+  "Agent 状态必须是一个独立分区",
 );
 assert(
   tabs.find((item) => item.key === "overview")?.to === "/gateways/X4",

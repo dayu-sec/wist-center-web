@@ -65,7 +65,7 @@ export function GatewayDetailPage() {
   return (
     <PageShell
       title={gateway ? `网关 ${gateway.gatewayId}` : "网关详情"}
-      summary="概览看状态；绑定客户确定这台网关的数据归属；运行时控制下发体检与重启；升级发版到这台机器。"
+      summary="概览看网关状态；Agent 状态单列一页；绑定客户确定数据归属；运行时控制下发体检与重启；升级发版到这台机器。"
     >
       <Link to="/" className={styles.backLink}>
         ← 返回网关态势
@@ -191,6 +191,52 @@ export function GatewayDetailPage() {
         </section>
       ) : null}
 
+      {gateway && tab === "agents" ? (
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionTitle}>Agent 状态</div>
+            <span className={styles.sectionMeta}>{agents.length} 个</span>
+          </div>
+          {agents.length === 0 ? (
+            <div className={styles.empty}>该网关尚未上报 Agent 状态。</div>
+          ) : (
+            <div className={styles.agentGrid}>
+              {agents.map((agent) => (
+                <div key={agent.agentId} className={styles.agentCard}>
+                  <div className={styles.agentHeader}>
+                    <div className={styles.agentId}>{agent.agentId}</div>
+                    <GatewayOnlineStatusBadge value={agent.status} />
+                  </div>
+                  <div className={styles.agentMeta}>
+                    {agent.hostname ? (
+                      <span title={agent.nodeId ?? undefined}>
+                        {agent.hostname}
+                      </span>
+                    ) : null}
+                    <span>版本 {agent.version}</span>
+                    <GatewayHealthBadge value={agent.health} />
+                  </div>
+                  <div className={styles.agentMetrics}>
+                    <span>内存 {formatBytes(agent.memoryBytes)}</span>
+                    <span>CPU {formatPercent(agent.cpuPercent)}</span>
+                    <span>时延 {agent.adminLatencyMs ?? "—"}ms</span>
+                  </div>
+                  <GatewayHistoryChart
+                    history={agentHistoriesData?.[agent.agentId]?.data}
+                    source={agentHistoriesData?.[agent.agentId]?.source}
+                    compact
+                    title="Agent 最近 1 小时"
+                  />
+                  <div className={styles.agentLastSeen}>
+                    {formatRelativeTime(agent.lastSeenAt)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
       {/* 业务身份绑定：运行中的网关只从这个页面进来（列表点进去就是 /gateways/:id），
           所以绑客户必须在这里可见 —— 只在「接入材料」页有等于没有。 */}
       {gateway && tab === "binding" ? (
@@ -301,59 +347,11 @@ export function GatewayDetailPage() {
               </ol>
             )}
           </section>
-
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <div className={styles.sectionTitle}>Agent 状态</div>
-              <span className={styles.sectionMeta}>{agents.length} 个</span>
-            </div>
-            {agents.length === 0 ? (
-              <div className={styles.empty}>该网关尚未上报 Agent 状态。</div>
-            ) : (
-              <div className={styles.agentGrid}>
-                {agents.map((agent) => (
-                  <div key={agent.agentId} className={styles.agentCard}>
-                    <div className={styles.agentHeader}>
-                      <div className={styles.agentId}>{agent.agentId}</div>
-                      <GatewayOnlineStatusBadge value={agent.status} />
-                    </div>
-                    <div className={styles.agentMeta}>
-                      {agent.hostname ? (
-                        <span title={agent.nodeId ?? undefined}>
-                          {agent.hostname}
-                        </span>
-                      ) : null}
-                      {agent.ipAddresses.length > 0 ? (
-                        <span>{agent.ipAddresses.join(" · ")}</span>
-                      ) : null}
-                      <span>版本 {agent.version}</span>
-                      <GatewayHealthBadge value={agent.health} />
-                    </div>
-                    <div className={styles.agentMetrics}>
-                      <span>内存 {formatBytes(agent.memoryBytes)}</span>
-                      <span>CPU {formatPercent(agent.cpuPercent)}</span>
-                      <span>时延 {agent.adminLatencyMs ?? "—"}ms</span>
-                    </div>
-                    <GatewayHistoryChart
-                      history={agentHistoriesData?.[agent.agentId]?.data}
-                      source={agentHistoriesData?.[agent.agentId]?.source}
-                      compact
-                      title="Agent 最近 1 小时"
-                    />
-                    <div className={styles.agentLastSeen}>
-                      {formatRelativeTime(agent.lastSeenAt)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
         </>
       ) : null}
     </PageShell>
   );
 }
-
 
 interface ChainStep {
   /** 生命周期状态；`null` = 创建（还没进入任何状态）。 */
