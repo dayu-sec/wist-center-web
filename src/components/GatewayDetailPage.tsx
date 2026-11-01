@@ -318,6 +318,14 @@ export function GatewayDetailPage() {
                       <GatewayOnlineStatusBadge value={agent.status} />
                     </div>
                     <div className={styles.agentMeta}>
+                      {agent.hostname ? (
+                        <span title={agent.nodeId ?? undefined}>
+                          {agent.hostname}
+                        </span>
+                      ) : null}
+                      {agent.ipAddresses.length > 0 ? (
+                        <span>{agent.ipAddresses.join(" · ")}</span>
+                      ) : null}
                       <span>版本 {agent.version}</span>
                       <GatewayHealthBadge value={agent.health} />
                     </div>

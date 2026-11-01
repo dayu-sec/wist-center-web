@@ -125,6 +125,11 @@ export interface AgentStatusView {
   cpuPercent: number | null;
   adminLatencyMs: number | null;
   lastSeenAt: string;
+  /** 机器身份：中心页要能回答“这是哪台机器”。旧网关不报 → `null`（不是空串）。 */
+  nodeId: string | null;
+  hostname: string | null;
+  /** 形如 `en0 192.168.1.5/24`；空表 = 没报过 / 确实没有地址。 */
+  ipAddresses: string[];
 }
 
 export type GatewayInstanceLifecycleState =
@@ -1039,6 +1044,14 @@ function optionalNumber(value: unknown): number | null {
   return typeof value === "number" ? value : null;
 }
 
+/** 字符串列表（`ip_addresses`）：非数组 / 非字符串项一律丢掉，不把 `null` 渲染成 `[""]`。 */
+function stringList(payload: any, ...keys: string[]): string[] {
+  const raw = pick(payload, ...keys);
+  return Array.isArray(raw)
+    ? raw.filter((item: unknown): item is string => typeof item === "string")
+    : [];
+}
+
 function normalizeRolloutPlan(payload: any): RolloutPlan {
   const rawPhases = pick(payload, "phases");
   return {
@@ -1488,6 +1501,9 @@ function normalizeAgentStatusView(payload: any): AgentStatusView {
       pick(payload, "last_seen_at", "lastSeenAt"),
       "agent.lastSeenAt",
     ),
+    nodeId: optionalString(pick(payload, "node_id", "nodeId")),
+    hostname: optionalString(payload.hostname),
+    ipAddresses: stringList(payload, "ip_addresses", "ipAddresses"),
   };
 }
 
@@ -1503,6 +1519,9 @@ function exampleAgentStatus(gatewayId: string): AgentStatusView[] {
       cpuPercent: 20,
       adminLatencyMs: 8,
       lastSeenAt: isoMinutesAgo(0),
+      nodeId: `${gatewayId}-node-1`,
+      hostname: `${gatewayId}-host-1`,
+      ipAddresses: ["en0 192.168.1.5/24"],
     },
     {
       agentId: `${gatewayId}-agent-2`,
@@ -1514,6 +1533,9 @@ function exampleAgentStatus(gatewayId: string): AgentStatusView[] {
       cpuPercent: 45,
       adminLatencyMs: 15,
       lastSeenAt: isoMinutesAgo(1),
+      nodeId: `${gatewayId}-node-2`,
+      hostname: `${gatewayId}-host-2`,
+      ipAddresses: ["eth0 10.0.3.7/24"],
     },
   ];
 }
