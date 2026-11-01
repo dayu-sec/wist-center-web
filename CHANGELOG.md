@@ -33,7 +33,13 @@
 - `GET /api/v1/admin/package-sources` 的 `github_proxy` 归一化为 `PackageSourceView.githubProxy`
   （缺省 `null`）。需中心后端 ≥ `0.26.0-alpha`。
 
-## [未发布]
+## [0.24.0-alpha] - 2026-11-01
+
+### 新增（网关详情：Agent 状态独立 tab）
+
+- 「Agent 状态」从概览页移出，作为网关详情的独立 tab（`/gateways/:id/agents`）。
+  分区顺序：概览 → Agent 状态 → 绑定客户 → 运行时控制 → 升级。
+- 暂不展示 Agent 的网卡地址，避免长地址把主机名 / 版本信息挤出卡片。
 
 ### 变更（发布执行：终结计划只保留归档）
 
@@ -42,13 +48,13 @@
 
 ### 变更（数字面板字体）
 
-### 变更（网关详情：Agent 状态独立 tab）
-
-- 「Agent 状态」从概览页移出，作为网关详情的独立 tab（`/gateways/:id/agents`）。
-- 暂不展示 Agent 的网卡地址，避免长地址把主机名 / 版本信息挤出卡片。
-
 - 英文与数字改用随包本地加载的 **IBM Plex Sans / IBM Plex Mono**（不依赖外网）；
   数字保持等宽 / tabular，中文回落系统 CJK；与 gateway-web 同一套字面。
+
+### 修复（任务队列内容不超宽）
+
+- `/jobs` 内容列宽收到 `--content-max`（两侧留 48px），窄屏（≤860px）改为 `width: 100% - 32px`；
+  此前在宽屏上被拉满整行，任务行读起来要横向扫视。
 
 ## [0.21.0-alpha] - 2026-10-29
 
