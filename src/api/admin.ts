@@ -2768,15 +2768,36 @@ export async function deletePlan(
  * 中心（后端）版本（`GET /api/v1/version`）。
  *
  * **公开端点**：未带 admin token 也能取 —— 页面左下角在未登录时也要显示后端版本。契约是扁平的
- * `{ version }`；`version` 缺失 / 不是字符串即视为契约漂移，**抛错而不是静默成空串**，让调用方
- * （版本块）把未知一律显示成 `—`，**绝不回落示例值**（一个假的版本号比没有更误导排障）。
+ * `{ version, stack_version? }`；`version` 缺失 / 不是字符串即视为契约漂移，**抛错而不是静默成空串**，
+ * 让调用方（版本块）把未知一律显示成 `—`，**绝不回落示例值**（一个假的版本号比没有更误导排障）。
+ *
+ * `stack_version` 是**可省字段**：老中心不返回它（全栈版本未知，显示 `—`）；一旦存在就必须是
+ * 非空字符串 —— 同样不编造。与网关侧 `wist-gateway-web` 同口径。
  */
-export function normalizeBackendVersion(payload: unknown): string {
-  const record = payload as { version?: unknown } | null | undefined;
-  return requiredString(record?.version, "version");
+export interface BackendVersionInfo {
+  /** 后端（二进制）版本。 */
+  version: string;
+  /** 部署这套中心的 center-stack 版本（`center-stack/version.txt`）。 */
+  stackVersion?: string;
 }
 
-export async function fetchBackendVersion(): Promise<string> {
+export function normalizeBackendVersion(payload: unknown): BackendVersionInfo {
+  const record = payload as
+    | { version?: unknown; stack_version?: unknown }
+    | null
+    | undefined;
+  const version = requiredString(record?.version, "version");
+  const raw = record?.stack_version;
+  if (raw === undefined || raw === null) {
+    return { version };
+  }
+  if (typeof raw !== "string" || raw.trim() === "") {
+    throw new Error("Invalid API response: missing stack_version");
+  }
+  return { version, stackVersion: raw.trim() };
+}
+
+export async function fetchBackendVersion(): Promise<BackendVersionInfo> {
   // 走 `requestJson`：设了 token 才带 Authorization；端点公开，不带也能取。
   const payload = await requestJson<unknown>("/api/v1/version");
   return normalizeBackendVersion(payload);

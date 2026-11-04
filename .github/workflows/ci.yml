@@ -67,6 +67,11 @@ jobs:
       - name: Test (admin token mechanism)
         run: npm run test:admin-token
 
+      # `GET /api/v1/version` 的载荷契约：`version` 必有，`stack_version` 可省但存在时必须非空
+      # （版本块据此显示后端 / 栈版本，任一未知就 `—`）。
+      - name: Test (version contract)
+        run: npm run test:version
+
 # 说明：本文件原先逐字节复制自 wist-gateway-web 的 ci.yml，已按本项目的实际能力收敛。
 # 本仓已加 tests/ 与 `test:agent-package-push`（发布 ② 契约），故恢复了对应步骤。
 # 仍**未**恢复的两条（属 gateway 侧 / 本仓尚不具备）：

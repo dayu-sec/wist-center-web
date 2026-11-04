@@ -2,12 +2,15 @@ import { useBackendVersion } from "../hooks";
 import styles from "./VersionFooter.module.css";
 
 /**
- * 侧边栏底部的版本块（左下角常驻）：前端版本 + 后端版本。
+ * 侧边栏底部的版本块（左下角常驻）：前端版本 + 后端版本 + 栈版本。
  *
  * 前端版本来自构建期注入的 `VITE_APP_VERSION`（运行态来自 Docker 的 `APP_VERSION`；dev 由 vite.config 从
- * `version.txt` 补上）；后端版本调公开端点 `GET /api/v1/version`（见 `useBackendVersion`）。任一未知都
+ * `version.txt` 补上）；后端与栈版本都来自公开端点 `GET /api/v1/version`（`useBackendVersion`）。任一未知都
  * 显示 `—`，**不回落示例值** —— 一个假的版本号比没有更误导运维（会照着错版本排障）。前端为空时仍保留
- * 这一行（而不是整行隐藏）：两行布局在「有版本 / 没版本」的部署里保持一致，免得同一块东西换个形状。
+ * 这一行（而不是整行隐藏）：三行布局在「有版本 / 没版本」的部署里保持一致，免得同一块东西换个形状。
+ *
+ * 后端 vs 栈：`version` 是**二进制**版本（镜像发版）；`stack_version` 是**这套部署**的
+ * center-stack 版本（`version.txt`，由 compose 只读挂进容器），两者可以不同步。
  *
  * 本仓无 i18n 模块（纯中文），故标签直接写中文。
  */
@@ -20,7 +23,7 @@ function formatVersion(raw: string | undefined): string {
 }
 
 export function VersionFooter() {
-  // 后端版本：公开端点，不需要 admin token；加载中 / 失败都是 undefined → 显示 `—`。
+  // 后端 / 栈版本：公开端点，不需要 admin token；加载中 / 失败都是 undefined → 显示 `—`。
   const { data: backendVersion } = useBackendVersion();
   const frontendVersion = import.meta.env.VITE_APP_VERSION;
 
@@ -32,7 +35,13 @@ export function VersionFooter() {
       </span>
       <span className={styles.row}>
         <span className={styles.label}>后端版本</span>
-        <span className={styles.value}>{formatVersion(backendVersion)}</span>
+        <span className={styles.value}>{formatVersion(backendVersion?.version)}</span>
+      </span>
+      <span className={styles.row}>
+        <span className={styles.label}>栈版本</span>
+        <span className={styles.value}>
+          {formatVersion(backendVersion?.stackVersion)}
+        </span>
       </span>
     </div>
   );
