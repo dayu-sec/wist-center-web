@@ -157,7 +157,9 @@ function InvestigationSection({ entries }: { entries: AgentInvestigationEntry[] 
         </span>
       </div>
       {entries.length === 0 ? (
-        <div className={styles.empty}>还没有调查数据。</div>
+        <div className={styles.empty}>
+          网关本机还没看到报告（任务进度看上方「调查」）。
+        </div>
       ) : (
         <ul className={styles.list}>
           {entries.map((entry) => (

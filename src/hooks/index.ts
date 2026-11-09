@@ -20,6 +20,7 @@ import {
   fetchGatewayBindCommand,
   fetchGatewayBindingHistory,
   fetchAgentHistory,
+  fetchAgentInvestigations,
   fetchGatewayHistory,
   fetchGatewayInstances,
   fetchGatewayLifecycle,
@@ -70,6 +71,8 @@ import {
 import {
   enqueueGatewayDiagnose,
   enqueueGatewayReportAgents,
+  fetchAgentInvestigationContent,
+  launchAgentInvestigation,
   enqueueGatewayRestart,
   fetchGatewayControlCommand,
   fetchLatestGatewayDiagnose,
@@ -941,6 +944,76 @@ export function useReportGatewayAgents() {
         queryKey: ["gateway-agents", gatewayId],
       });
     },
+  });
+}
+
+/**
+ * 某台 Agent 的最近几条调查任务（含证据就绪）。
+ *
+ * 轮询节奏刻意分两档：还有任务在跑 / 报告刚下发但证据未就绪 → 5s；
+ * 全部收尾且证据已就绪（或明确不可用）→ 停下来，由用户手动刷新。
+ */
+export function useAgentInvestigations(gatewayId: string, agentId: string) {
+  useAuthVersion();
+  const enabled = Boolean(getAdminApiToken()) && Boolean(gatewayId) && Boolean(agentId);
+  return useQuery({
+    queryKey: ["agent-investigations", gatewayId, agentId],
+    queryFn: () => fetchAgentInvestigations(gatewayId, agentId),
+    refetchInterval: (query) => {
+      const tasks = query.state.data?.tasks ?? [];
+      const pending = tasks.some(
+        (task) =>
+          task.state !== "acked" || task.evidence.reason === "not_yet_available",
+      );
+      return enabled && pending ? 5_000 : false;
+    },
+    enabled,
+  });
+}
+
+/** 发起一次调查。 */
+export function useLaunchAgentInvestigation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      gatewayId: string;
+      agentId: string;
+      topic: string;
+      top?: number;
+      maxSeconds?: number;
+      reason?: string;
+    }) =>
+      launchAgentInvestigation(input.gatewayId, input.agentId, {
+        topic: input.topic,
+        top: input.top,
+        maxSeconds: input.maxSeconds,
+        reason: input.reason,
+      }),
+    onSuccess: (_result, input) => {
+      // 命令是异步的（gwlinkd 短轮询取走）；只作废查询，让上面的 5s 轮询拿到真实进度。
+      void queryClient.invalidateQueries({
+        queryKey: ["agent-investigations", input.gatewayId, input.agentId],
+      });
+    },
+  });
+}
+
+/**
+ * 读报告正文（中心代理证据库）。缓存按 `command_id` 计，证据不可变，重取没有意义。
+ */
+export function useAgentInvestigationContent(
+  gatewayId: string,
+  agentId: string,
+  commandId: string | null,
+) {
+  useAuthVersion();
+  return useQuery({
+    queryKey: ["agent-investigation-content", gatewayId, agentId, commandId],
+    queryFn: () =>
+      fetchAgentInvestigationContent(gatewayId, agentId, commandId as string),
+    enabled: Boolean(getAdminApiToken()) && Boolean(commandId),
+    staleTime: Infinity,
+    retry: false,
   });
 }
 

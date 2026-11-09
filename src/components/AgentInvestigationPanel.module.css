@@ -1,0 +1,288 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topic,
+.topicActive {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.topic:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.topicActive {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.launchBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 280px;
+  flex: 1 1 280px;
+  justify-content: flex-end;
+}
+
+.reason {
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 260px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+}
+
+.reason:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.launch,
+.confirm {
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.launch:hover,
+.confirm:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* 二次确认换成实心：这一次点击会真的在客户机上跑 IO，视觉上要和「第一步」分开。 */
+.confirm {
+  background: var(--accent);
+  color: var(--surface, #fff);
+}
+
+.launch:disabled,
+.confirm:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.cancel {
+  flex: none;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-4);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.cancel:hover {
+  color: var(--text-2);
+}
+
+.hint {
+  color: var(--text-4);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.notice {
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.notice code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.error {
+  color: var(--crit);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.empty {
+  color: var(--text-4);
+  font-size: 11px;
+}
+
+.emptyHint {
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.item:first-child {
+  padding-top: 2px;
+}
+
+.item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state {
+  flex: none;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stateQueued {
+  color: var(--text-3);
+}
+
+.stateClaimed {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.stateAcked {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 4px;
+  color: var(--text-4);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.evidence {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.evidenceOk,
+.evidenceMuted {
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.evidenceOk {
+  color: var(--text-2);
+}
+
+/* 「看不到」与「没有」都不该冒充结论：统一淡色。 */
+.evidenceMuted {
+  color: var(--text-4);
+}
+
+.reportLink {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reportLink:hover {
+  color: var(--accent-hover);
+}
+
+.report {
+  max-height: 320px;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2, transparent);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

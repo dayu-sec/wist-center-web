@@ -179,6 +179,79 @@ export interface AgentDataManifest {
   investigations: AgentInvestigationEntry[];
 }
 
+/**
+ * 调查题目（与网关 / agentd 同一闭集：只增不改名）。
+ *
+ * `hint` 是给人看的：调查会在客户机上跑几十秒到两分钟，点之前要知道它在干什么。
+ */
+export const INVESTIGATION_TOPICS = [
+  { id: "disk", label: "磁盘", hint: "占用最高的目录与文件系统" },
+  { id: "load", label: "负载", hint: "CPU / 内存 / 进程压力" },
+  { id: "accounts", label: "账号", hint: "本地用户、sudo 权限、空口令" },
+  { id: "persistence", label: "持久化", hint: "开机自启、定时任务、服务" },
+  { id: "exposure", label: "暴露面", hint: "监听端口与对外开放情况" },
+  { id: "telemetry-health", label: "采集自检", hint: "采集链路自身是否健康" },
+] as const;
+
+/** 证据视图：报告在证据库里到没到、能不能读。 */
+export interface AgentInvestigationEvidence {
+  available: boolean;
+  /** 不可用时的原因：**不是**“没有报告”，页面要分开说。 */
+  reason?:
+    | "not_yet_available"
+    | "evidence_not_configured"
+    | "tenant_unbound"
+    | "evidence_unavailable"
+    | (string & {});
+  kind?: string;
+  verdict?: string;
+  sizeBytes?: number;
+  sensitivity?: string;
+  /** 还能读几天（证据库保留期）。 */
+  retentionDays?: number;
+}
+
+/** 一条调查任务的进度（网关随 Agent 状态上报）。 */
+export interface AgentInvestigationTask {
+  commandId: string;
+  topic: string;
+  /** `queued`（还没取走）/ `claimed`（在扫）/ `acked`（已回执）。 */
+  state: "queued" | "claimed" | "acked" | (string & {});
+  requestedAt: string;
+  claimedAt: string | null;
+  ackedAt: string | null;
+  outcome: string | null;
+  detail: string | null;
+  evidence: AgentInvestigationEvidence;
+}
+
+/** 最近一次下发的回执（中心命令队列）：网关拒绝时**不会有任务**，只有它能说真话。 */
+export interface AgentInvestigationDispatchResult {
+  commandId: string;
+  state: string;
+  requestedAt: string;
+  resultStatus?: number;
+  resultError?: string;
+}
+
+export interface AgentInvestigationList {
+  gatewayId: string;
+  agentId: string;
+  /** 这份任务状态的上报时刻；`null` = 网关还没报过。 */
+  reportedAt: string | null;
+  lastDispatch: AgentInvestigationDispatchResult | null;
+  tasks: AgentInvestigationTask[];
+}
+
+/** 一次已下发的调查。 */
+export interface AgentInvestigationDispatched {
+  gatewayId: string;
+  agentId: string;
+  commandId: string;
+  topic: string;
+  state: string;
+}
+
 export type GatewayInstanceLifecycleState =
   "Provisioned" | "Initializing" | "Running" | "Failed";
 
@@ -3249,4 +3322,147 @@ export async function publishWparseRelease(
     },
   );
   return normalizeWparsePublishResult(raw);
+}
+
+// ── 中心下发调查（center → gwlinkd → gateway → agentd）────────────────────
+
+function investigationEvidenceUrl(
+  gatewayId: string,
+  agentId: string,
+  suffix = "",
+): string {
+  return `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/agents/${encodeURIComponent(
+    agentId,
+  )}/investigations${suffix}`;
+}
+
+export function normalizeInvestigationTask(payload: any): AgentInvestigationTask {
+  const evidence = payload?.evidence ?? {};
+  return {
+    commandId: requiredString(
+      pick(payload, "command_id", "commandId"),
+      "investigation.commandId",
+    ),
+    topic: requiredString(payload?.topic, "investigation.topic"),
+    state: requiredString(payload?.state, "investigation.state"),
+    requestedAt: requiredString(
+      pick(payload, "requested_at", "requestedAt"),
+      "investigation.requestedAt",
+    ),
+    claimedAt: (pick(payload, "claimed_at", "claimedAt") as string) ?? null,
+    ackedAt: (pick(payload, "acked_at", "ackedAt") as string) ?? null,
+    outcome: (payload?.outcome as string) ?? null,
+    detail: (payload?.detail as string) ?? null,
+    evidence: {
+      available: Boolean(evidence?.available),
+      reason: evidence?.reason ?? undefined,
+      kind: evidence?.kind ?? undefined,
+      verdict: evidence?.verdict ?? undefined,
+      sizeBytes: (pick(evidence, "size_bytes", "sizeBytes") as number) ?? undefined,
+      sensitivity: evidence?.sensitivity ?? undefined,
+      retentionDays:
+        (pick(evidence, "retention_days", "retentionDays") as number) ?? undefined,
+    },
+  };
+}
+
+/** 下发回执（后端可能返回 snake_case；也可能根本没有）。 */
+export function normalizeDispatchResult(
+  payload: any,
+): AgentInvestigationDispatchResult | null {
+  if (!payload || typeof payload !== "object") return null;
+  return {
+    commandId: requiredString(
+      pick(payload, "command_id", "commandId"),
+      "lastDispatch.commandId",
+    ),
+    state: requiredString(payload?.state, "lastDispatch.state"),
+    requestedAt: requiredString(
+      pick(payload, "requested_at", "requestedAt"),
+      "lastDispatch.requestedAt",
+    ),
+    resultStatus:
+      (pick(payload, "result_status", "resultStatus") as number) ?? undefined,
+    resultError:
+      (pick(payload, "result_error", "resultError") as string) ?? undefined,
+  };
+}
+
+/** 对某台 Agent 发起一次调查（中心铸 `command_id`，一路透传到报告与证据库索引）。 */
+export async function launchAgentInvestigation(
+  gatewayId: string,
+  agentId: string,
+  input: { topic: string; top?: number; maxSeconds?: number; reason?: string },
+): Promise<AgentInvestigationDispatched> {
+  const raw = await requestJson<any>(investigationEvidenceUrl(gatewayId, agentId), {
+    method: "POST",
+    body: JSON.stringify({
+      topic: input.topic,
+      ...(input.top ? { top: input.top } : {}),
+      ...(input.maxSeconds ? { max_seconds: input.maxSeconds } : {}),
+      ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+    }),
+  });
+  return {
+    gatewayId: requiredString(
+      pick(raw, "gateway_id", "gatewayId"),
+      "investigation.gatewayId",
+    ),
+    agentId: requiredString(pick(raw, "agent_id", "agentId"), "investigation.agentId"),
+    commandId: requiredString(
+      pick(raw, "command_id", "commandId"),
+      "investigation.commandId",
+    ),
+    topic: requiredString(raw?.topic, "investigation.topic"),
+    state: requiredString(raw?.state, "investigation.state"),
+  };
+}
+
+/** 最近几条调查任务的进度 + 证据是否就绪。 */
+export async function fetchAgentInvestigations(
+  gatewayId: string,
+  agentId: string,
+): Promise<AgentInvestigationList> {
+  const raw = await requestJson<any>(investigationEvidenceUrl(gatewayId, agentId));
+  const tasks = Array.isArray(raw?.tasks) ? raw.tasks : [];
+  return {
+    gatewayId: requiredString(
+      pick(raw, "gateway_id", "gatewayId"),
+      "investigation.gatewayId",
+    ),
+    agentId: requiredString(pick(raw, "agent_id", "agentId"), "investigation.agentId"),
+    reportedAt: (pick(raw, "reported_at", "reportedAt") as string) ?? null,
+    lastDispatch: normalizeDispatchResult(
+      pick(raw, "last_dispatch", "lastDispatch"),
+    ),
+    tasks: tasks.map(normalizeInvestigationTask),
+  };
+}
+
+/**
+ * 读报告正文（中心代理证据库，不落盘）。
+ *
+ * 为什么不是一条 `<a href>`：读口要 `Authorization`，浏览器直连带不上。
+ */
+export async function fetchAgentInvestigationContent(
+  gatewayId: string,
+  agentId: string,
+  commandId: string,
+): Promise<string> {
+  const path = investigationEvidenceUrl(
+    gatewayId,
+    agentId,
+    `/${encodeURIComponent(commandId)}/content`,
+  );
+  const adminToken = getAdminApiToken();
+  const response = await fetch(path, {
+    headers: {
+      ...(adminToken ? { authorization: `Bearer ${adminToken}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    const { code, detail } = await readAdminApiError(response);
+    throw new ApiError(response.status, path, { code, detail });
+  }
+  return response.text();
 }

@@ -12,6 +12,7 @@ import {
   PageShell,
 } from "./ui";
 import { AgentDataManifestView } from "./AgentDataManifestView";
+import { AgentInvestigationPanel } from "./AgentInvestigationPanel";
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
 import { GatewayOnlineStatusBadge } from "./GatewayOnlineStatusBadge";
@@ -140,6 +141,16 @@ export function AgentDetailPage() {
                 manifest={agent.dataManifest}
                 variant="full"
               />
+            </div>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionTitle}>调查</div>
+              <div className={styles.sectionMeta}>最近 3 条 / 7 天内</div>
+            </div>
+            <div className={styles.card}>
+              <AgentInvestigationPanel gatewayId={gatewayId} agentId={agent.agentId} />
             </div>
           </section>
 
