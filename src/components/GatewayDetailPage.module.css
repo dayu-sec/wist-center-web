@@ -472,20 +472,54 @@
   margin-bottom: 13px;
 }
 
+.agentDetailLink {
+  flex: none;
+  outline: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.agentDetailLink:hover {
+  color: var(--accent-hover);
+}
+
+.agentDetailLink:focus-visible {
+  border-radius: var(--radius-xs);
+  box-shadow: var(--ring);
+}
+
 .agentId {
-  overflow-wrap: anywhere;
+  /* 单行省略：agent id 是固定长度，换行会把「详情→」和健康徽标顶到下一行，
+     同排两张卡就对齐不了。完整值放 `title`。 */
+  min-width: 0;
+  overflow: hidden;
   color: var(--text);
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .agentMeta {
+  /* 单行：主机名可省略，版本与健康徽标始终可见（不换行 -> 两张卡高度一致）。 */
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
+  gap: 8px;
   color: var(--text-3);
   font-size: 11.5px;
+  white-space: nowrap;
+}
+.agentHost {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agentVersion {
+  flex: none;
 }
 .agentMetrics {
   display: flex;
@@ -497,10 +531,19 @@
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
-.agentLastSeen {
+/* 卡片底部：左侧「最后上报」、右侧唯一入口。
+   放这里而不是头部 —— 头部已经有「在线/健康」两个徽标，再加一个链接就成了三个同级状态，
+   而且离它展开的内容（采集授权 / 调查数据）隔了整张卡。 */
+.agentFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-top: 11px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+.agentLastSeen {
   color: var(--text-4);
   font-size: 11.5px;
 }

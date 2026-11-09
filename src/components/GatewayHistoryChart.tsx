@@ -1,5 +1,12 @@
 import type { GatewayHistory, GatewayHistorySample } from "../api";
 import { formatBytes, formatPercent } from "./ui";
+import {
+  areaPath,
+  buildSparkPoints,
+  polylinePoints,
+  SPARK_HEIGHT,
+  SPARK_WIDTH,
+} from "./sparkline";
 import styles from "./GatewayHistoryChart.module.css";
 
 interface GatewayHistoryChartProps {
@@ -13,9 +20,6 @@ interface GatewayHistoryChartProps {
 type SampleValue = (
   sample: GatewayHistorySample,
 ) => number | null | undefined;
-
-const VIEW_WIDTH = 240;
-const VIEW_HEIGHT = 30;
 
 /** 在网关概览中展示最近窗口的 CPU、内存趋势和在线时间轴。 */
 export function GatewayHistoryChart({
@@ -205,17 +209,13 @@ function TrendRow({
   samples: GatewayHistorySample[];
   valueOf: SampleValue;
 }) {
-  const points = buildPoints(samples, valueOf);
+  const points = buildSparkPoints(samples, valueOf);
   const gradientId = `gw-trend-${id}`;
-  // 空序列（整列都是 null，例如网关没上报 cpu/memory）时 `buildPoints` 返回 `[]` ——
+  // 空序列（整列都是 null，例如网关没上报 cpu/memory）时点列表是空的 ——
   // 空数组是**真值**，用 `points ?` 判断会进到 `points[0].x` 而抛 TypeError（整页白屏）。
   // 所以判据必须是「有没有点」，不是「是不是空值」。
   const hasPoints = points.length > 0;
-  const area = hasPoints
-    ? `M ${points[0].x},${VIEW_HEIGHT} ` +
-      points.map((point) => `L ${point.x},${point.y}`).join(" ") +
-      ` L ${points[points.length - 1].x},${VIEW_HEIGHT} Z`
-    : "";
+  const area = areaPath(points);
 
   return (
     <div className={styles.trendRow}>
@@ -225,7 +225,7 @@ function TrendRow({
       </span>
       <svg
         className={styles.sparkline}
-        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+        viewBox={`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`}
         preserveAspectRatio="none"
         role="img"
         aria-label={`${label} 最近 1 小时趋势`}
@@ -241,9 +241,7 @@ function TrendRow({
             <path d={area} fill={`url(#${gradientId})`} />
             <polyline
               className={styles.line}
-              points={points
-                .map((point) => `${point.x},${point.y}`)
-                .join(" ")}
+              points={polylinePoints(points)}
               stroke={color}
             />
           </>
@@ -255,34 +253,6 @@ function TrendRow({
 }
 
 /** 按实际采样时间和序列值域生成折线点（x/y 已落到 viewBox 坐标系）。 */
-function buildPoints(
-  samples: GatewayHistorySample[],
-  valueOf: SampleValue,
-): { x: number; y: number }[] {
-  const raw = samples.flatMap((sample) => {
-    const value = valueOf(sample);
-    return value === null || value === undefined ? [] : [{ at: sample.at, value }];
-  });
-  if (raw.length === 0) return [];
-  const minAt = raw[0].at;
-  const maxAt = raw[raw.length - 1].at;
-  const values = raw.map((point) => point.value);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const timeRange = Math.max(maxAt - minAt, 1);
-  const valueRange = Math.max(maxValue - minValue, Math.abs(maxValue) * 0.08, 1);
-  return raw.map((point) => ({
-    x: Number((((point.at - minAt) / timeRange) * VIEW_WIDTH).toFixed(1)),
-    y: Number(
-      (
-        VIEW_HEIGHT -
-        3 -
-        ((point.value - minValue) / valueRange) * (VIEW_HEIGHT - 5)
-      ).toFixed(1),
-    ),
-  }));
-}
-
 function latestValue(
   samples: GatewayHistorySample[],
   valueOf: SampleValue,

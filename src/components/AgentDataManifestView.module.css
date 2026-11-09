@@ -7,6 +7,47 @@
   gap: 10px;
 }
 
+/* 详情页：清单很长，宽屏两栅并排，条目改成分隔线行（密度优先，不再卡片套卡片）。 */
+.full {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px 24px;
+  align-items: start;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.full .section {
+  min-width: 0;
+}
+
+/* ── 卡片摘要：两行，只回答「有没有事」── */
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.summaryLabel {
+  flex: none;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* 右侧：问题计数在前、总数胶囊在后（先看到「有几件事」，再看「一共多少」）。 */
+.summaryValue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ── 详情页：逐条清单 ── */
+
 .section {
   display: flex;
   flex-direction: column;
@@ -26,6 +67,25 @@
   font-weight: 600;
 }
 
+/* 详情页的段题是页面级标题下的二级标题，比卡片里的微标签大一档。 */
+.full .sectionTitle {
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.sectionBadges {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 6px;
+}
+
+.problem {
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .count {
   min-width: 18px;
   padding: 0 5px;
@@ -37,25 +97,29 @@
   line-height: 16px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
-  /* 卡片窄、清单可能长：限高可滚动，别让一台机器的清单把整行卡片拉成一面墙。 */
-  max-height: 200px;
-  overflow-y: auto;
 }
 
 .item {
-  padding: 7px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.item:first-child {
+  padding-top: 2px;
+}
+
+.item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .itemHead {
@@ -65,11 +129,13 @@
   gap: 8px;
 }
 
+/* 名称可省略：topic / family 长度不定，但不能把状态徽标挤走。 */
 .name {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text);
   font-size: 11.5px;
   font-weight: 600;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -91,11 +157,29 @@
   margin-top: 5px;
 }
 
-.inputs code {
+/* 来源：`kind` 与 `target` 分开显示。只给 target 会误读
+   （`15s` 是间隔不是路径，`com.apple.alf` 是来源 id 不是文件）。 */
+.input {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.inputKind {
+  flex: none;
+  color: var(--text-4);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.input code {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-3);
   font-family: var(--font-mono);
   font-size: 10.5px;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -110,6 +194,15 @@
 .empty {
   color: var(--text-4);
   font-size: 11px;
+}
+
+/* 空态的解释：比 `.empty` 再淡一层，不抢“还没有”这句话的注意力。 */
+.hint {
+  margin-top: 4px;
+  color: var(--text-4);
+  font-size: 10.5px;
+  line-height: 1.5;
+  opacity: 0.85;
 }
 
 .toneOk,

@@ -24,8 +24,10 @@ import {
 } from "./ui";
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
 import { AgentDataManifestView } from "./AgentDataManifestView";
+import { AgentResourceTrend } from "./AgentResourceTrend";
 import { GatewayCustomerBindPanel } from "./GatewayCustomerBindPanel";
 import { gatewayTabs, resolveGatewayTab } from "./gatewayDetailTabs";
+import { agentDetailPath } from "./agentRoutes";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
 import { GatewayManualUpgradePanel } from "./GatewayManualUpgradePanel";
 import { GatewayOpsPanel } from "./GatewayOpsPanel";
@@ -45,10 +47,11 @@ export function GatewayDetailPage() {
   useEffect(() => {
     resetRefreshAgents();
   }, [gatewayId, resetRefreshAgents]);
-  const agentIds = agentsData?.data?.map((agent) => agent.agentId) ?? [];
-  const { data: agentHistoriesData } = useAgentHistories(gatewayId, agentIds);
   const { data: historyData, isLoading: isHistoryLoading } =
     useGatewayHistory(gatewayId);
+  // 卡片上的资源趋势（每台 Agent 一条）：只画形状、不标数值。
+  const agentIds = agentsData?.data?.map((agent) => agent.agentId) ?? [];
+  const { data: agentHistoriesData } = useAgentHistories(gatewayId, agentIds);
   const { data: uptimesData } = useGatewayUptimes([gatewayId]);
   const { data: lifecycleData } = useGatewayLifecycle(gatewayId);
   const lifecycle = lifecycleData?.data ?? [];
@@ -235,16 +238,22 @@ export function GatewayDetailPage() {
               {agents.map((agent) => (
                 <div key={agent.agentId} className={styles.agentCard}>
                   <div className={styles.agentHeader}>
-                    <div className={styles.agentId}>{agent.agentId}</div>
+                    <div className={styles.agentId} title={agent.agentId}>
+                      {agent.agentId}
+                    </div>
                     <GatewayOnlineStatusBadge value={agent.status} />
                   </div>
                   <div className={styles.agentMeta}>
                     {agent.hostname ? (
-                      <span title={agent.nodeId ?? undefined}>
+                      <span className={styles.agentHost} title={agent.hostname}>
                         {agent.hostname}
                       </span>
-                    ) : null}
-                    <span>版本 {agent.version}</span>
+                    ) : (
+                      <span className={styles.agentHost} />
+                    )}
+                    <span className={styles.agentVersion}>
+                      版本 {agent.version}
+                    </span>
                     <GatewayHealthBadge value={agent.health} />
                   </div>
                   <div className={styles.agentMetrics}>
@@ -253,14 +262,22 @@ export function GatewayDetailPage() {
                     <span>时延 {agent.adminLatencyMs ?? "—"}ms</span>
                   </div>
                   <AgentDataManifestView manifest={agent.dataManifest} />
-                  <GatewayHistoryChart
+                  {/* 资源占用用图看趋势，数值就在上面那行里（图上不重复标数）。 */}
+                  <AgentResourceTrend
                     history={agentHistoriesData?.[agent.agentId]?.data}
-                    source={agentHistoriesData?.[agent.agentId]?.source}
-                    compact
-                    title="Agent 最近 1 小时"
                   />
-                  <div className={styles.agentLastSeen}>
-                    {formatRelativeTime(agent.lastSeenAt)}
+                  {/* 卡片的唯一操作位：内容看完了再决定要不要进去。
+                      放在头部会与「在线/健康」徽标混成一个视觉层次。 */}
+                  <div className={styles.agentFooter}>
+                    <span className={styles.agentLastSeen}>
+                      最后上报 {formatRelativeTime(agent.lastSeenAt)}
+                    </span>
+                    <Link
+                      to={agentDetailPath(gatewayId, agent.agentId)}
+                      className={styles.agentDetailLink}
+                    >
+                      详情 →
+                    </Link>
                   </div>
                 </div>
               ))}

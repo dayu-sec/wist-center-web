@@ -1,7 +1,7 @@
 {
   "name": "wist-center-web",
   "private": true,
-  "version": "0.26.0",
+  "version": "0.27.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,9 @@
     "test:gateway-ops": "tsx tests/gateway-ops-contract.test.ts",
     "test:gateway-detail-tabs": "tsx tests/gateway-detail-tabs.test.ts",
     "test:agent-data-manifest": "tsx tests/agent-data-manifest.test.ts",
+    "test:agent-detail-route": "tsx tests/agent-detail-route.test.ts",
+    "test:agent-manifest-presentation": "tsx tests/agent-manifest-presentation.test.ts",
+    "test:sparkline": "tsx tests/sparkline.test.ts",
     "test:release-components": "tsx tests/release-components.test.ts",
     "test:release-compat": "tsx tests/release-compat-contract.test.ts",
     "test:wparse-release": "tsx tests/wparse-release-contract.test.ts",

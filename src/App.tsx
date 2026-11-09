@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { GatewayListPage } from "./components/GatewayListPage";
 import { GatewayDetailPage } from "./components/GatewayDetailPage";
+import { AgentDetailPage } from "./components/AgentDetailPage";
 import { GatewayInstancePage } from "./components/GatewayInstancePage";
 import { GatewayInstanceDetailPage } from "./components/GatewayInstanceDetailPage";
 import { JobsPage } from "./components/JobsPage";
@@ -22,6 +23,11 @@ export function App() {
         <Route
           path="/gateways/:gatewayId/:tab"
           element={<GatewayDetailPage />}
+        />
+        {/* 单台 Agent 的详情（采集授权 / 调查数据）：比上面多一段，不会与 `:tab` 冲突。 */}
+        <Route
+          path="/gateways/:gatewayId/agents/:agentId"
+          element={<AgentDetailPage />}
         />
         <Route path="/instance" element={<GatewayInstancePage />} />
         {/* 任务队列：中心执行的异步后台任务（远程包下载等），排队中可取消。 */}
