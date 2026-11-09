@@ -253,6 +253,45 @@
   font-weight: 600;
 }
 
+.sectionActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agentRefresh {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.agentRefresh:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.agentRefresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.agentRefreshNotice {
+  margin-bottom: 10px;
+  color: var(--crit);
+  font-size: 12px;
+}
+
+.agentRefreshHint {
+  margin-bottom: 10px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
 /* 卡片里的一段说明（不是计数胶囊：`sectionMeta` 是给右上角计数用的）。 */
 /* 「已接入」提示：一行就够，带绿色对勾；不再是占半屏的卡片。 */
 .installedNote {

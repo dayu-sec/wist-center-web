@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import type { LifecycleEvent } from "../api";
 import {
@@ -8,6 +9,7 @@ import {
   useGatewayLifecycle,
   useGatewayStatus,
   useGatewayUptimes,
+  useReportGatewayAgents,
 } from "../hooks";
 import {
   Badge,
@@ -21,6 +23,7 @@ import {
   PageShell,
 } from "./ui";
 import { GatewayHealthBadge } from "./GatewayHealthBadge";
+import { AgentDataManifestView } from "./AgentDataManifestView";
 import { GatewayCustomerBindPanel } from "./GatewayCustomerBindPanel";
 import { gatewayTabs, resolveGatewayTab } from "./gatewayDetailTabs";
 import { GatewayHistoryChart } from "./GatewayHistoryChart";
@@ -36,6 +39,12 @@ export function GatewayDetailPage() {
   const tab = resolveGatewayTab(location.pathname);
   const { data: statusData, isLoading } = useGatewayStatus(gatewayId);
   const { data: agentsData } = useGatewayAgents(gatewayId);
+  const refreshAgents = useReportGatewayAgents();
+  // 换网关时清掉上一台的下发回执，避免把 A 的 command_id / 成功提示串到 B。
+  const resetRefreshAgents = refreshAgents.reset;
+  useEffect(() => {
+    resetRefreshAgents();
+  }, [gatewayId, resetRefreshAgents]);
   const agentIds = agentsData?.data?.map((agent) => agent.agentId) ?? [];
   const { data: agentHistoriesData } = useAgentHistories(gatewayId, agentIds);
   const { data: historyData, isLoading: isHistoryLoading } =
@@ -195,8 +204,30 @@ export function GatewayDetailPage() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <div className={styles.sectionTitle}>Agent 状态</div>
-            <span className={styles.sectionMeta}>{agents.length} 个</span>
+            <div className={styles.sectionActions}>
+              <span className={styles.sectionMeta}>{agents.length} 个</span>
+              {/* 60s 周期上报是兜底；这里让中心可以「现在就要一份」。 */}
+              <button
+                type="button"
+                className={styles.agentRefresh}
+                disabled={refreshAgents.isPending}
+                onClick={() => refreshAgents.mutate(gateway.gatewayId)}
+              >
+                {refreshAgents.isPending ? "下发中…" : "立即刷新"}
+              </button>
+            </div>
           </div>
+          {refreshAgents.error ? (
+            <div className={styles.agentRefreshNotice}>
+              下发刷新失败：{String(refreshAgents.error)}
+            </div>
+          ) : null}
+          {refreshAgents.isSuccess ? (
+            <div className={styles.agentRefreshHint}>
+              已下发刷新（{refreshAgents.data?.command_id ?? "-"}
+              ），几秒内更新。
+            </div>
+          ) : null}
           {agents.length === 0 ? (
             <div className={styles.empty}>该网关尚未上报 Agent 状态。</div>
           ) : (
@@ -221,6 +252,7 @@ export function GatewayDetailPage() {
                     <span>CPU {formatPercent(agent.cpuPercent)}</span>
                     <span>时延 {agent.adminLatencyMs ?? "—"}ms</span>
                   </div>
+                  <AgentDataManifestView manifest={agent.dataManifest} />
                   <GatewayHistoryChart
                     history={agentHistoriesData?.[agent.agentId]?.data}
                     source={agentHistoriesData?.[agent.agentId]?.source}

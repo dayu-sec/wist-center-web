@@ -130,6 +130,53 @@ export interface AgentStatusView {
   hostname: string | null;
   /** 形如 `en0 192.168.1.5/24`；空表 = 没报过 / 确实没有地址。 */
   ipAddresses: string[];
+  /** 数据清单（采集授权 + 调查数据）；旧网关不报 → `null`（不是空清单）。 */
+  dataManifest: AgentDataManifest | null;
+}
+
+/** 数据清单里的一条采集来源：来源类型 + 目标（文件路径 / exporter / 指标间隔 / auto）。 */
+export interface AgentDataSource {
+  kind: string;
+  target: string;
+}
+
+/** 数据清单里的一条采集授权（一个采集面 = 一份常驻工作）。 */
+export interface AgentCollectionEntry {
+  family: string;
+  workId: string;
+  /** `active` / `paused`（撤回与取代的历史版本不进清单）。 */
+  status: string;
+  planVersion: number;
+  /** agentd 回报过的版本；`null` = 还没回报（网关侧看到的就是漂移）。 */
+  acknowledgedVersion: number | null;
+  /** `ok` / `degraded` / `failed` / `unknown` / `paused`；`null` = 本机还没报过。 */
+  collectionStatus: string | null;
+  collectionDetail: string | null;
+  inputs: AgentDataSource[];
+}
+
+/** 数据清单里的一份调查数据（一条已落盘报告的摘要，不带正文）。 */
+export interface AgentInvestigationEntry {
+  commandId: string;
+  topic: string;
+  observedAt: string;
+  /** `ok` / `warn` / `fail`；报告里没写就是 `unknown`。 */
+  overall: string;
+  verdict: string;
+  findingsOk: number;
+  findingsWarn: number;
+  findingsFail: number;
+  /** 无法判定（读不到 / 平台不支持）：不能当成正常。 */
+  findingsUnknown: number;
+  /** `false`（如 `exposure`）时不得渲染成“全部正常”。 */
+  judged: boolean;
+}
+
+/** 一台 Agent 的数据清单：采集授权 + 调查数据。 */
+export interface AgentDataManifest {
+  collectedAt: string;
+  collection: AgentCollectionEntry[];
+  investigations: AgentInvestigationEntry[];
 }
 
 export type GatewayInstanceLifecycleState =
@@ -1477,6 +1524,86 @@ function exampleGatewayLifecycle(gatewayId: string): LifecycleEvent[] {
   ];
 }
 
+export function normalizeAgentDataManifest(
+  payload: unknown,
+): AgentDataManifest | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const rawCollection = record.collection;
+  const rawInvestigations = record.investigations;
+  return {
+    collectedAt:
+      optionalString(record.collected_at ?? record.collectedAt) ?? "",
+    collection: Array.isArray(rawCollection)
+      ? rawCollection
+          .filter((item) => item && typeof item === "object")
+          .map((item): AgentCollectionEntry => {
+            const entry = item as Record<string, unknown>;
+            const rawInputs = entry.inputs;
+            return {
+              family: optionalString(entry.family) ?? "",
+              workId: optionalString(entry.work_id ?? entry.workId) ?? "",
+              status: optionalString(entry.status) ?? "",
+              planVersion:
+                optionalNumber(entry.plan_version ?? entry.planVersion) ?? 0,
+              acknowledgedVersion: optionalNumber(
+                entry.acknowledged_version ?? entry.acknowledgedVersion,
+              ),
+              collectionStatus: optionalString(
+                entry.collection_status ?? entry.collectionStatus,
+              ),
+              collectionDetail: emptyStringToNull(
+                optionalString(
+                  entry.collection_detail ?? entry.collectionDetail,
+                ),
+              ),
+              inputs: Array.isArray(rawInputs)
+                ? rawInputs
+                    .filter((input) => input && typeof input === "object")
+                    .map((input): AgentDataSource => {
+                      const source = input as Record<string, unknown>;
+                      return {
+                        kind: optionalString(source.kind) ?? "",
+                        target: optionalString(source.target) ?? "",
+                      };
+                    })
+                : [],
+            };
+          })
+      : [],
+    investigations: Array.isArray(rawInvestigations)
+      ? rawInvestigations
+          .filter((item) => item && typeof item === "object")
+          .map((item): AgentInvestigationEntry => {
+            const entry = item as Record<string, unknown>;
+            return {
+              commandId:
+                optionalString(entry.command_id ?? entry.commandId) ?? "",
+              topic: optionalString(entry.topic) ?? "",
+              observedAt:
+                optionalString(entry.observed_at ?? entry.observedAt) ?? "",
+              overall: optionalString(entry.overall) ?? "unknown",
+              verdict: optionalString(entry.verdict) ?? "unknown",
+              findingsOk:
+                optionalNumber(entry.findings_ok ?? entry.findingsOk) ?? 0,
+              findingsWarn:
+                optionalNumber(entry.findings_warn ?? entry.findingsWarn) ?? 0,
+              findingsFail:
+                optionalNumber(entry.findings_fail ?? entry.findingsFail) ?? 0,
+              findingsUnknown:
+                optionalNumber(
+                  entry.findings_unknown ?? entry.findingsUnknown,
+                ) ?? 0,
+              // 与网关报告读取同口径：老报告没带 → 当作 `true`，不能误标成“仅证据”。
+              judged: entry.judged !== false,
+            };
+          })
+      : [],
+  };
+}
+
 function normalizeAgentStatusView(payload: any): AgentStatusView {
   return {
     agentId: requiredString(
@@ -1504,6 +1631,9 @@ function normalizeAgentStatusView(payload: any): AgentStatusView {
     nodeId: optionalString(pick(payload, "node_id", "nodeId")),
     hostname: optionalString(payload.hostname),
     ipAddresses: stringList(payload, "ip_addresses", "ipAddresses"),
+    dataManifest: normalizeAgentDataManifest(
+      pick(payload, "data_manifest", "dataManifest"),
+    ),
   };
 }
 
@@ -1522,6 +1652,46 @@ function exampleAgentStatus(gatewayId: string): AgentStatusView[] {
       nodeId: `${gatewayId}-node-1`,
       hostname: `${gatewayId}-host-1`,
       ipAddresses: ["en0 192.168.1.5/24"],
+      // 示例数据只用来撑空态：给它一小份清单，让「采集授权 / 调查数据」两块能被看到。
+      dataManifest: {
+        collectedAt: isoMinutesAgo(1),
+        collection: [
+          {
+            family: "HostMetrics",
+            workId: `${gatewayId}-work-host-metrics`,
+            status: "active",
+            planVersion: 1,
+            acknowledgedVersion: 1,
+            collectionStatus: "ok",
+            collectionDetail: null,
+            inputs: [{ kind: "MetricInterval", target: "15s" }],
+          },
+          {
+            family: "DatabaseService",
+            workId: `${gatewayId}-work-db-service`,
+            status: "active",
+            planVersion: 2,
+            acknowledgedVersion: 1,
+            collectionStatus: "degraded",
+            collectionDetail: "/var/log/postgresql.log: permission denied",
+            inputs: [{ kind: "FileGlob", target: "/var/log/postgresql.log" }],
+          },
+        ],
+        investigations: [
+          {
+            commandId: "cmd-example-disk",
+            topic: "disk",
+            observedAt: isoMinutesAgo(30),
+            overall: "warn",
+            verdict: "Warn",
+            findingsOk: 4,
+            findingsWarn: 1,
+            findingsFail: 0,
+            findingsUnknown: 0,
+            judged: true,
+          },
+        ],
+      },
     },
     {
       agentId: `${gatewayId}-agent-2`,
@@ -1536,6 +1706,8 @@ function exampleAgentStatus(gatewayId: string): AgentStatusView[] {
       nodeId: `${gatewayId}-node-2`,
       hostname: `${gatewayId}-host-2`,
       ipAddresses: ["eth0 10.0.3.7/24"],
+      // 旧 agentd / 老网关：没报清单 —— 页面要能说“还没上报”，不是“什么数据都没有”。
+      dataManifest: null,
     },
   ];
 }
@@ -2867,6 +3039,21 @@ export async function enqueueGatewayDiagnose(
 ): Promise<GatewayControlEnqueued> {
   return requestJson<GatewayControlEnqueued>(
     `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/diagnose`,
+    { method: "POST" },
+  );
+}
+
+/**
+ * 让网关**立即上报一次** Agent 明细 / 数据清单。
+ *
+ * 与 gwlinkd 的 60s 周期上报同一内核；周期是兜底，这个入口用于页面「立即刷新」。
+ * 下发是异步的（中心入队 → gwlinkd 短轮询取走），回执用 `fetchGatewayControlCommand` 查。
+ */
+export async function enqueueGatewayReportAgents(
+  gatewayId: string,
+): Promise<GatewayControlEnqueued> {
+  return requestJson<GatewayControlEnqueued>(
+    `/api/v1/admin/gateways/${encodeURIComponent(gatewayId)}/agents/refresh`,
     { method: "POST" },
   );
 }

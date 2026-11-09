@@ -69,6 +69,7 @@ import {
 } from "../api";
 import {
   enqueueGatewayDiagnose,
+  enqueueGatewayReportAgents,
   enqueueGatewayRestart,
   fetchGatewayControlCommand,
   fetchLatestGatewayDiagnose,
@@ -920,6 +921,24 @@ export function useRunGatewayDiagnose() {
     onSuccess: (_result, gatewayId) => {
       void queryClient.invalidateQueries({
         queryKey: ["gateway-diagnose", gatewayId],
+      });
+    },
+  });
+}
+
+/**
+ * 让网关立即上报一次 Agent 明细 / 数据清单。
+ *
+ * 下发成功后立刻作废机队查询：命令是异步的（gwlinkd 短轮询取走），页面会用自己的
+ * 5s 轮询拿到新数据；这里不做本地乐观合并，避免把「已下发」显示成「已刷新」。
+ */
+export function useReportGatewayAgents() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gatewayId: string) => enqueueGatewayReportAgents(gatewayId),
+    onSuccess: (_result, gatewayId) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["gateway-agents", gatewayId],
       });
     },
   });
