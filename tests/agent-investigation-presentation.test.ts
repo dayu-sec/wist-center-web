@@ -65,6 +65,7 @@ const reasons: Array<[string, string]> = [
   ["evidence_not_configured", "证据服务未接入：只能看到任务进度"],
   ["tenant_unbound", "该网关还没绑定客户，读不到证据"],
   ["evidence_unavailable", "证据服务不可达（不是没有报告）"],
+  ["evidence_unauthorized", "读取证据的令牌无效或已过期（换凭据，不是没有报告）"],
 ];
 for (const [reason, expected] of reasons) {
   assert(

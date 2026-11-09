@@ -57,6 +57,8 @@ export function evidenceLabel(evidence: AgentInvestigationEvidence): string {
       return "该网关还没绑定客户，读不到证据";
     case "evidence_unavailable":
       return "证据服务不可达（不是没有报告）";
+    case "evidence_unauthorized":
+      return "读取证据的令牌无效或已过期（换凭据，不是没有报告）";
     default:
       return "报告不可见";
   }

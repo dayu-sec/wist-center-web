@@ -202,6 +202,7 @@ export interface AgentInvestigationEvidence {
     | "evidence_not_configured"
     | "tenant_unbound"
     | "evidence_unavailable"
+    | "evidence_unauthorized"
     | (string & {});
   kind?: string;
   verdict?: string;
