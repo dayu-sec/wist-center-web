@@ -103,6 +103,11 @@ const camel = normalizeAgentDataManifest({
       acknowledgedVersion: null,
       collectionStatus: null,
       collectionDetail: null,
+      collectionPrerequisites: "blocked",
+      collectionResult: "cancelled",
+      collectionReasons: [
+        { kind: "missing_tool", subject: "smartctl", detail: "工具缺失" },
+      ],
       inputs: [],
     },
   ],
@@ -126,6 +131,18 @@ assert(camel.collection[0].workId === "w", "camelCase workId 读错");
 assert(
   camel.collection[0].collectionStatus === null,
   "camelCase collectionStatus 读错",
+);
+assert(
+  camel.collection[0].collectionPrerequisites === "blocked",
+  "camelCase collectionPrerequisites 读错",
+);
+assert(
+  camel.collection[0].collectionResult === "cancelled",
+  "camelCase collectionResult 读错",
+);
+assert(
+  camel.collection[0].collectionReasons?.[0].kind === "missing_tool",
+  "camelCase collectionReasons 读错",
 );
 assert(
   camel.investigations[0].judged === true,

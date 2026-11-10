@@ -5,6 +5,23 @@
 
 > 说明：0.1.3 之前未单独维护本文件；自 0.1.3 起记录。
 
+## [0.29.0-alpha] - 2026-11-10
+
+### 变更（采集状态多字段展示）
+
+- 数据清单页的采集结果按**正交字段**展示：前置条件（`collectionPrerequisites`）+
+  结果（`collectionResult`）+ 结构化原因（`collectionReasons`），与新 agentd / 网关的
+  语义一致。
+  - `blocked` + `cancelled` 显示成**待就绪**（缺 `smartctl` 这类部署前提），不再归为失败；
+  - `blocked` + `pending` 显示成**待就绪（等目标）**；
+  - 「采集问题」统计（`collectionProblems`）优先按 `collectionResult` 计数。
+- 原因列表按 `subject: detail` 拼接；旧 agentd 回退到 `collectionDetail`。
+
+### 兼容性
+
+- 需 `wist-center ≥ 0.35.3` + `wist-gateway ≥ 0.45` + `wist-agentd ≥ 0.32`；
+  任一未升级时自动回退到 `collectionStatus` 单字段展示。
+
 ## [0.28.2-alpha] - 2026-11-10
 
 ### 修复

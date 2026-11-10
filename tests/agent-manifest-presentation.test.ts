@@ -7,9 +7,11 @@
 
 import type {
   AgentCollectionEntry,
+  AgentCollectionReason,
   AgentInvestigationEntry,
 } from "../src/api";
 import {
+  collectionDetailText,
   collectionProblems,
   collectionSeverity,
   investigationProblems,
@@ -24,6 +26,11 @@ function entry(
   family: string,
   collectionStatus: string | null,
   status = "active",
+  structured?: {
+    prerequisites?: string | null;
+    result?: string | null;
+    reasons?: AgentCollectionReason[] | null;
+  },
 ): AgentCollectionEntry {
   return {
     family,
@@ -33,6 +40,9 @@ function entry(
     acknowledgedVersion: 1,
     collectionStatus,
     collectionDetail: null,
+    collectionPrerequisites: structured?.prerequisites ?? null,
+    collectionResult: structured?.result ?? null,
+    collectionReasons: structured?.reasons ?? null,
     inputs: [],
   };
 }
@@ -112,5 +122,29 @@ const inv = investigationProblems([
   investigation("e", "unknown"),
 ]);
 assert(inv.failed === 1 && inv.warned === 2, `调查计数不对：${JSON.stringify(inv)}`);
+
+// 6) 新模型：待就绪不是失败；部分失败仍算降级；未观测算未上报。
+const blocked = entry("blocked", null, "active", {
+  prerequisites: "blocked",
+  result: "cancelled",
+  reasons: [{ kind: "missing_tool", subject: "smartctl", detail: "工具缺失" }],
+});
+const partial = entry("partial", "degraded", "active", { result: "partial" });
+const pending = entry("pending", null, "active", {
+  prerequisites: "blocked",
+  result: "pending",
+});
+assert(collectionSeverity(blocked) === 2, `待就绪严重度不对：${collectionSeverity(blocked)}`);
+assert(collectionSeverity(partial) === 4, `部分失败严重度不对：${collectionSeverity(partial)}`);
+assert(collectionSeverity(pending) === 3, `待观测严重度不对：${collectionSeverity(pending)}`);
+const structured = collectionProblems([blocked, partial, pending]);
+assert(
+  structured.failed === 0 && structured.degraded === 1 && structured.unreported === 2,
+  `新模型计数不对：${JSON.stringify(structured)}`,
+);
+assert(
+  collectionDetailText(blocked) === "smartctl: 工具缺失",
+  `原因文本不对：${collectionDetailText(blocked)}`,
+);
 
 console.log("agent manifest presentation contract test passed");

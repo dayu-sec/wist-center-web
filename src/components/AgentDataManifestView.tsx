@@ -4,6 +4,7 @@ import type {
   AgentInvestigationEntry,
 } from "../api";
 import {
+  collectionDetailText,
   collectionProblems,
   investigationProblems,
   sortCollectionBySeverity,
@@ -133,9 +134,9 @@ function CollectionSection({ entries }: { entries: AgentCollectionEntry[] }) {
                   ))}
                 </div>
               ) : null}
-              {entry.collectionDetail ? (
-                <div className={styles.detail} title={entry.collectionDetail}>
-                  {entry.collectionDetail}
+              {collectionDetailText(entry) ? (
+                <div className={styles.detail} title={collectionDetailText(entry) ?? undefined}>
+                  {collectionDetailText(entry)}
                 </div>
               ) : null}
             </li>
@@ -250,6 +251,23 @@ function InvestigationProblemBadges({
 }
 
 function collectionLabel(entry: AgentCollectionEntry): string {
+  switch (entry.collectionResult) {
+    case "success":
+      return "采集中";
+    case "partial":
+      return "部分失败";
+    case "failure":
+      return "失败";
+    case "cancelled":
+      return entry.collectionPrerequisites === "blocked" ? "待就绪" : "已暂停";
+    case "pending":
+      return entry.collectionPrerequisites === "blocked"
+        ? "待就绪（等目标）"
+        : "未知";
+    default:
+      break;
+  }
+  // 旧 agentd：回退到单一状态。
   switch (entry.collectionStatus) {
     case "ok":
       return "采集中";
@@ -267,6 +285,19 @@ function collectionLabel(entry: AgentCollectionEntry): string {
 }
 
 function collectionTone(entry: AgentCollectionEntry): string {
+  switch (entry.collectionResult) {
+    case "success":
+      return styles.toneOk;
+    case "partial":
+      return styles.toneWarn;
+    case "failure":
+      return styles.toneFail;
+    case "cancelled":
+    case "pending":
+      return styles.toneUnknown;
+    default:
+      break;
+  }
   switch (entry.collectionStatus) {
     case "ok":
       return styles.toneOk;

@@ -140,6 +140,13 @@ export interface AgentDataSource {
   target: string;
 }
 
+/** 一条采集原因（结构化）。 */
+export interface AgentCollectionReason {
+  kind: string;
+  subject: string;
+  detail: string;
+}
+
 /** 数据清单里的一条采集授权（一个采集面 = 一份常驻工作）。 */
 export interface AgentCollectionEntry {
   family: string;
@@ -149,9 +156,16 @@ export interface AgentCollectionEntry {
   planVersion: number;
   /** agentd 回报过的版本；`null` = 还没回报（网关侧看到的就是漂移）。 */
   acknowledgedVersion: number | null;
-  /** `ok` / `degraded` / `failed` / `unknown` / `paused`；`null` = 本机还没报过。 */
+  /** **兼容字段**：旧单一状态；`null` = 本机还没报过（或新 agentd 只报了新字段）。 */
   collectionStatus: string | null;
+  /** **兼容字段**：旧版人看说明。 */
   collectionDetail: string | null;
+  /** 前置条件：`ready` / `blocked`；`null` = 旧 agentd 没报。 */
+  collectionPrerequisites: string | null;
+  /** 执行结果：`success` / `partial` / `failure` / `cancelled` / `pending`；`null` = 旧 agentd。 */
+  collectionResult: string | null;
+  /** 原因（结构化）；`null` = 旧 agentd 没报。 */
+  collectionReasons: AgentCollectionReason[] | null;
   inputs: AgentDataSource[];
 }
 
@@ -1598,6 +1612,22 @@ function exampleGatewayLifecycle(gatewayId: string): LifecycleEvent[] {
   ];
 }
 
+function normalizeCollectionReasons(
+  payload: unknown,
+): AgentCollectionReason[] | null {
+  if (!Array.isArray(payload)) return null;
+  return payload
+    .filter((item) => item && typeof item === "object")
+    .map((item): AgentCollectionReason => {
+      const record = item as Record<string, unknown>;
+      return {
+        kind: optionalString(record.kind) ?? "",
+        subject: optionalString(record.subject) ?? "",
+        detail: optionalString(record.detail) ?? "",
+      };
+    });
+}
+
 export function normalizeAgentDataManifest(
   payload: unknown,
 ): AgentDataManifest | null {
@@ -1632,6 +1662,20 @@ export function normalizeAgentDataManifest(
                 optionalString(
                   entry.collection_detail ?? entry.collectionDetail,
                 ),
+              ),
+              collectionPrerequisites: emptyStringToNull(
+                optionalString(
+                  entry.collection_prerequisites ??
+                    entry.collectionPrerequisites,
+                ),
+              ),
+              collectionResult: emptyStringToNull(
+                optionalString(
+                  entry.collection_result ?? entry.collectionResult,
+                ),
+              ),
+              collectionReasons: normalizeCollectionReasons(
+                entry.collection_reasons ?? entry.collectionReasons,
               ),
               inputs: Array.isArray(rawInputs)
                 ? rawInputs
@@ -1738,6 +1782,9 @@ function exampleAgentStatus(gatewayId: string): AgentStatusView[] {
             acknowledgedVersion: 1,
             collectionStatus: "ok",
             collectionDetail: null,
+            collectionPrerequisites: "ready",
+            collectionResult: "success",
+            collectionReasons: null,
             inputs: [{ kind: "MetricInterval", target: "15s" }],
           },
           {
@@ -1748,6 +1795,15 @@ function exampleAgentStatus(gatewayId: string): AgentStatusView[] {
             acknowledgedVersion: 1,
             collectionStatus: "degraded",
             collectionDetail: "/var/log/postgresql.log: permission denied",
+            collectionPrerequisites: "ready",
+            collectionResult: "partial",
+            collectionReasons: [
+              {
+                kind: "permission",
+                subject: "/var/log/postgresql.log",
+                detail: "permission denied",
+              },
+            ],
             inputs: [{ kind: "FileGlob", target: "/var/log/postgresql.log" }],
           },
         ],

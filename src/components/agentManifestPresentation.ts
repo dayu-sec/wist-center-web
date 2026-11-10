@@ -26,7 +26,39 @@ export interface InvestigationProblems {
  * 「还没上报」排在「正常」之前：该采的没回音，比「采着了」更该被看见。
  * 「已暂停」排最后：那是人主动关的，不是问题。
  */
+/** 原因优先用结构化列表；旧 agentd 回退到 `collectionDetail`。 */
+export function collectionDetailText(
+  entry: AgentCollectionEntry,
+): string | null {
+  const reasons = entry.collectionReasons;
+  if (reasons && reasons.length > 0) {
+    return reasons
+      .map((reason) =>
+        reason.subject ? `${reason.subject}: ${reason.detail}` : reason.detail,
+      )
+      .join("；");
+  }
+  return entry.collectionDetail;
+}
+
 export function collectionSeverity(entry: AgentCollectionEntry): number {
+  // 新模型优先；旧 agentd（无 result）回退到单一状态。
+  if (entry.collectionResult) {
+    switch (entry.collectionResult) {
+      case "failure":
+        return 5;
+      case "partial":
+        return 4;
+      case "pending":
+        return 3;
+      case "cancelled":
+        return entry.collectionPrerequisites === "blocked" ? 2 : 0;
+      case "success":
+        return 1;
+      default:
+        return 3;
+    }
+  }
   switch (entry.collectionStatus) {
     case "failed":
       return 5;
@@ -57,6 +89,12 @@ export function collectionProblems(
   const problems: CollectionProblems = { failed: 0, degraded: 0, unreported: 0 };
   for (const entry of entries) {
     if (entry.status === "paused") continue;
+    if (entry.collectionResult) {
+      if (entry.collectionResult === "failure") problems.failed += 1;
+      else if (entry.collectionResult === "partial") problems.degraded += 1;
+      else if (entry.collectionResult !== "success") problems.unreported += 1;
+      continue;
+    }
     if (entry.collectionStatus === "failed") problems.failed += 1;
     else if (entry.collectionStatus === "degraded") problems.degraded += 1;
     else if (entry.collectionStatus !== "ok") problems.unreported += 1;
