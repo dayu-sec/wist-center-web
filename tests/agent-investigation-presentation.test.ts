@@ -25,6 +25,8 @@ const {
   evidenceLabel,
   describeErrorCode,
   describeLaunchError,
+  outcomeLabel,
+  outcomeTone,
   prettyJson,
 } = await import("../src/components/agentInvestigationPresentation");
 const { ApiError } = await import("../src/api/admin");
@@ -38,11 +40,25 @@ assert(topicLabel("disk") === "磁盘", "disk → 磁盘");
 assert(topicLabel("telemetry-health") === "采集自检", "telemetry-health → 采集自检");
 assert(topicLabel("memory") === "memory", "未知题面原样返回");
 
-// 2) 任务状态：只有三段，未知状态原样（不猜成“已完成”）。
+// 2) 任务状态：闭集，未知状态原样（不猜成“已完成”）。
+//    `expired` / `superseded` 也是终态，但它们**没执行过** —— 不能给「已回执」。
 assert(stateLabel("queued") === "已下发", "queued");
 assert(stateLabel("claimed") === "调查中", "claimed");
 assert(stateLabel("acked") === "已回执", "acked");
+assert(stateLabel("expired") === "已过期（未执行）", "expired 不能说成已回执");
+assert(stateLabel("superseded") === "被取代", "superseded 不能说成已回执");
 assert(stateLabel("weird") === "weird", "未知状态不得被猜成终态");
+
+// 2b) 终态结论：成功不单独上徽标，失败类必须区分「没跑」与「跑了但没成」。
+assert(outcomeLabel(null) === null, "未终态没有结论");
+assert(outcomeLabel("succeeded") === "成功", "succeeded");
+assert(outcomeLabel("failed") === "失败", "failed");
+assert(outcomeLabel("unsupported") === "Agent 不支持", "unsupported");
+assert(outcomeLabel("expired") === "过期未执行", "expired 要说清没跑");
+assert(outcomeLabel("superseded") === "被新命令取代", "superseded");
+assert(outcomeTone("succeeded") === null, "成功不上彩色徽标");
+assert(outcomeTone("failed") === "crit", "失败要红");
+assert(outcomeTone("throttled") === "warn", "被节流是等一等就会好：不拿去红")
 
 // 3) 证据：就绪时带判定 / 大小 / 保留期。
 assert(

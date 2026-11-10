@@ -1,7 +1,7 @@
 // Agent 调查面板的**纯展示逻辑**（不放 JSX，便于契约测试）。
 //
 // 这几条文案是页面与“现实”的唯一接口：
-//   - 任务状态只有三段（已下发 / 调查中 / 已回执），不猜测；
+//   - 任务状态是闭集（已下发 / 调查中 / 已回执 / 已过期 / 被取代），不猜测；
 //   - 证据状态必须区分「没有报告」与「看不到报告」；
 //   - 下发失败要给下一步动作，而不是把错误码原样扔给运维。
 
@@ -15,7 +15,12 @@ export function topicLabel(topic: string): string {
   return INVESTIGATION_TOPICS.find((item) => item.id === topic)?.label ?? topic;
 }
 
-/** 任务进度：`acked` = 终态回执（成功或失败都算结束）。 */
+/**
+ * 任务进度。
+ *
+ * `expired` / `superseded` 虽然也带 `acked_at`，但它们**没有执行过** ——
+ * 读成「已回执」会把「命令丢了」当成「做完了」（与网关队列页同一口径）。
+ */
 export function stateLabel(state: string): string {
   switch (state) {
     case "queued":
@@ -24,8 +29,58 @@ export function stateLabel(state: string): string {
       return "调查中";
     case "acked":
       return "已回执";
+    case "expired":
+      return "已过期（未执行）";
+    case "superseded":
+      return "被取代";
     default:
       return state;
+  }
+}
+
+/**
+ * 终态结论的说法（`outcome` 是闭集）。
+ *
+ * `succeeded` 不单独上徽标（`已回执` 已经足够），但失败类必须说清是哪一种：
+ * 「没跑」与「跑了但没成」的处置完全不同。
+ */
+export function outcomeLabel(outcome: string | null): string | null {
+  switch (outcome) {
+    case null:
+      return null;
+    case "succeeded":
+      return "成功";
+    case "failed":
+      return "失败";
+    case "no_uplink":
+      return "无上送通道";
+    case "throttled":
+      return "被节流";
+    case "stale":
+      return "太晚取到（已失效）";
+    case "unsupported":
+      return "Agent 不支持";
+    case "superseded":
+      return "被新命令取代";
+    case "expired":
+      return "过期未执行";
+    default:
+      return outcome;
+  }
+}
+
+/** 结论徽标的语气：只有“真出了问题”才用红色；等一等就会好的用琥珀色。 */
+export function outcomeTone(outcome: string | null): "crit" | "warn" | null {
+  switch (outcome) {
+    case "failed":
+    case "unsupported":
+    case "no_uplink":
+      return "crit";
+    case "throttled":
+    case "stale":
+      return "warn";
+    default:
+      return null;
   }
 }
 

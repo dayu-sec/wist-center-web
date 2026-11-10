@@ -217,6 +217,34 @@
   color: var(--ok);
 }
 
+/* 过期 / 被取代：写了回执但没有执行过 —— 既不是成功也不是失败。 */
+.stateVoid {
+  border-color: var(--border-strong);
+  color: var(--text-4);
+}
+
+/* 结论徽标（只给非成功；“已回执 + 失败”比单看状态更能回答“到底成没成”）。 */
+.outcome {
+  flex: none;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.outcomeCrit {
+  border-color: var(--crit);
+  color: var(--crit);
+}
+
+.outcomeWarn {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;

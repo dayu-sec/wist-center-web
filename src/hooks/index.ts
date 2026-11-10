@@ -950,9 +950,19 @@ export function useReportGatewayAgents() {
 /**
  * 某台 Agent 的最近几条调查任务（含证据就绪）。
  *
- * 轮询节奏刻意分两档：还有任务在跑 / 报告刚下发但证据未就绪 → 5s；
- * 全部收尾且证据已就绪（或明确不可用）→ 停下来，由用户手动刷新。
+ * 轮询节奏分三档：
+ *   · 还有任务没终态（`queued` / `claimed`）/ 报告刚下发但证据未就绪 → 5s；
+ *   · **刚下发、任务行还没上来** → 5s（这一步最容易漏：中心的任务列表来自网关随 60s 机队
+ *     上报带上来的 `investigations[]`，下发后头一次 refetch 必然是空表；只按「有没有 pending
+ *     任务」决定轮询，会把页面永远停在「已下发，等网关取走」）；
+ *   · 已下发很久但仍无任务行（离线机器）→ 30s 慢轮询，不拿 5s 去打一个不动的目标；
+ *   · 全部终态且证据已就绪（或明确不可用）→ 停，由用户手动刷新。
  */
+const INVESTIGATION_FAST_POLL_MS = 5_000;
+const INVESTIGATION_SLOW_POLL_MS = 30_000;
+/** 下发后「认为它还在路上」的窗口：与网关的待执行窗口（1h）错开，只覆盖最可能的 10 分钟。 */
+const INVESTIGATION_DISPATCH_GRACE_MS = 10 * 60_000;
+
 export function useAgentInvestigations(gatewayId: string, agentId: string) {
   useAuthVersion();
   const enabled = Boolean(getAdminApiToken()) && Boolean(gatewayId) && Boolean(agentId);
@@ -960,12 +970,25 @@ export function useAgentInvestigations(gatewayId: string, agentId: string) {
     queryKey: ["agent-investigations", gatewayId, agentId],
     queryFn: () => fetchAgentInvestigations(gatewayId, agentId),
     refetchInterval: (query) => {
-      const tasks = query.state.data?.tasks ?? [];
+      if (!enabled) return false;
+      const data = query.state.data;
+      const tasks = data?.tasks ?? [];
+      // 终态是闭集：`expired` / `superseded` 已经是「结束」了，不能当成还在跑。
       const pending = tasks.some(
         (task) =>
-          task.state !== "acked" || task.evidence.reason === "not_yet_available",
+          (task.state === "queued" || task.state === "claimed") ||
+          task.evidence.reason === "not_yet_available",
       );
-      return enabled && pending ? 5_000 : false;
+      if (pending) return INVESTIGATION_FAST_POLL_MS;
+      if (tasks.length > 0) return false;
+      // 没有任务行：刚下发就继续追，追了很久就降频（机器可能一直离线）。
+      const requestedAt = data?.lastDispatch?.requestedAt;
+      if (!requestedAt) return false;
+      const age = Date.now() - Date.parse(requestedAt);
+      if (!Number.isFinite(age)) return INVESTIGATION_SLOW_POLL_MS;
+      return age < INVESTIGATION_DISPATCH_GRACE_MS
+        ? INVESTIGATION_FAST_POLL_MS
+        : INVESTIGATION_SLOW_POLL_MS;
     },
     enabled,
   });

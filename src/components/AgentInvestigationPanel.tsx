@@ -12,6 +12,8 @@ import { formatRelativeTime } from "./ui";
 import {
   describeLaunchError,
   evidenceLabel,
+  outcomeLabel,
+  outcomeTone,
   prettyJson,
   stateLabel,
   topicLabel,
@@ -135,7 +137,10 @@ export function AgentInvestigationPanel({
       ) : tasks.length === 0 ? (
         <div className={styles.empty}>
           {investigations.data?.lastDispatch
-            ? "已下发，等网关取走（状态随机队上报更新，≤60s）。"
+            ? waitingText(
+                investigations.data.reportedAt,
+                investigations.data.lastDispatch.requestedAt,
+              )
             : "还没有调查过这台机器。"}
           <div className={styles.emptyHint}>
             最近 3 条、7 天内的任务会显示在这里；更早的请到证据库按 `command_id` 查。
@@ -184,6 +189,9 @@ function TaskRow({
 }) {
   const label = topicLabel(task.topic);
   const evidence = task.evidence;
+  // `succeeded` 不再加一个绿徽标：「已回执」已经是这个意思。
+  const outcome = task.outcome === "succeeded" ? null : outcomeLabel(task.outcome);
+  const tone = outcomeTone(task.outcome);
   return (
     <li className={styles.item}>
       <div className={styles.itemHead}>
@@ -191,6 +199,14 @@ function TaskRow({
         <span className={`${styles.state} ${stateClass(task.state)}`}>
           {stateLabel(task.state)}
         </span>
+        {outcome ? (
+          <span
+            className={`${styles.outcome} ${tone === "crit" ? styles.outcomeCrit : styles.outcomeWarn}`}
+            title={task.detail ?? undefined}
+          >
+            {outcome}
+          </span>
+        ) : null}
       </div>
       <div className={styles.meta}>
         <span>{formatRelativeTime(task.requestedAt)}</span>
@@ -233,6 +249,28 @@ function ReportBody({
   return <pre className={styles.report}>{prettyJson(content.data)}</pre>;
 }
 
+/**
+ * 已下发但还没有任务行时的提示。
+ *
+ * 把「网关多久没收到这台机器的状态」端出来 —— 这正是最多的那种情况：命令排在网关，
+ * 机器/agentd 没在跑，而中心只能看到「等」。`reportedAt` 是网关随状态上报带上来的
+ * `last_seen_at`，它比任何猜测都准。
+ */
+function waitingText(reportedAt: string | null, requestedAt: string): string {
+  const requested = Date.parse(requestedAt);
+  const since = Number.isFinite(requested)
+    ? Math.max(0, Math.round((Date.now() - requested) / 60_000))
+    : null;
+  const seen = reportedAt ? Date.parse(reportedAt) : NaN;
+  const offlineMinutes = Number.isFinite(seen)
+    ? Math.max(0, Math.round((Date.now() - seen) / 60_000))
+    : null;
+  if (offlineMinutes !== null && offlineMinutes >= 3) {
+    return `已下发 ${since ?? "?"} 分钟，但网关已经 ${offlineMinutes} 分钟没收到这台机器的状态 —— 机器离线或 agentd 没在跑，命令还排在网关。`;
+  }
+  return `已下发 ${since ?? "?"} 分钟，等网关取走（状态随机队上报更新，≤60s）。`;
+}
+
 function stateClass(state: string): string {
   switch (state) {
     case "queued":
@@ -241,6 +279,10 @@ function stateClass(state: string): string {
       return styles.stateClaimed;
     case "acked":
       return styles.stateAcked;
+    // 过期 / 被取代都是「没跑」：不给绿色，也不能与「已回执」同色。
+    case "expired":
+    case "superseded":
+      return styles.stateVoid;
     default:
       return styles.stateQueued;
   }
