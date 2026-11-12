@@ -32,12 +32,12 @@ import styles from "./OpenApiAvailabilityPage.module.css";
  *
  * - **探活**由后端自己做（中心回环打开放面），页面只展示结果；
  * - **接口清单**来自后端 spec（`GET /api/v1/admin/open-api`），页面不维护第二份路径 / 参数；
- * - curl 示例的基地址默认取 `open_public_url`，第三方令牌只在当前标签页的 sessionStorage。
+ * - curl 示例的基地址默认取 `open_public_url`；令牌**不经过浏览器**（示例统一用
+ *   `${WCR_TOKEN}`，调用方自己 `read -rs` 灌进去）。
  *
  * 注意路径不能叫 `/api-health`：dev / 生产都把 `/api` 前缀反代给中心，页面会被吞成 404。
  */
 const BASE_URL_KEY = "warpInsightCenterOpenApiBase";
-const TOKEN_KEY = "warpInsightCenterOpenApiToken";
 const REFRESH_MS = 30_000;
 
 type Section = "probes" | "api";
@@ -45,14 +45,6 @@ type Section = "probes" | "api";
 function readBaseUrl(): string {
   try {
     return window.localStorage.getItem(BASE_URL_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function readToken(): string {
-  try {
-    return window.sessionStorage.getItem(TOKEN_KEY) ?? "";
   } catch {
     return "";
   }
@@ -76,7 +68,6 @@ export function OpenApiAvailabilityPage() {
   const [loading, setLoading] = useState(true);
   const [section, setSection] = useState<Section>("probes");
   const [baseUrl, setBaseUrl] = useState(readBaseUrl);
-  const [token, setToken] = useState(readToken);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   // 只在「打开页面之后」统计：这里不是长期趋势，是现场自查。
   const [samples, setSamples] = useState<{ total: number; ok: number }>({
@@ -125,19 +116,6 @@ export function OpenApiAvailabilityPage() {
       window.localStorage.setItem(BASE_URL_KEY, value);
     } catch {
       // 存不下就只在本页生效。
-    }
-  }
-
-  function updateToken(value: string) {
-    setToken(value);
-    try {
-      if (value.trim()) {
-        window.sessionStorage.setItem(TOKEN_KEY, value);
-      } else {
-        window.sessionStorage.removeItem(TOKEN_KEY);
-      }
-    } catch {
-      // 同上。
     }
   }
 
@@ -234,25 +212,6 @@ export function OpenApiAvailabilityPage() {
                 onChange={(event) => updateBaseUrl(event.target.value)}
               />
             </label>
-            <label className={styles.baseField}>
-              <span className={styles.label}>
-                调用令牌（第三方 wcr_ 令牌）
-                {token.trim() ? <span className={styles.tokenOn}> · 示例已使用</span> : null}
-              </span>
-              <input
-                className={styles.input}
-                type="password"
-                autoComplete="off"
-                value={token}
-                placeholder="wcr_…（roles 含 investigation:run）"
-                onChange={(event) => updateToken(event.target.value)}
-              />
-            </label>
-            {token ? (
-              <button type="button" className={styles.button} onClick={() => updateToken("")}>
-                清空令牌
-              </button>
-            ) : null}
             {data ? (
               <span className={styles.configLine}>
                 角色 <code className={styles.mono}>{data.required_role}</code>
@@ -272,7 +231,6 @@ export function OpenApiAvailabilityPage() {
                   operation={operation}
                   document={document}
                   baseUrl={effectiveBase}
-                  token={token}
                 />
               ))}
             </div>
@@ -285,7 +243,18 @@ export function OpenApiAvailabilityPage() {
             （<code className={styles.mono}>audience = wist-center</code>、
             <code className={styles.mono}>roles = investigation:run</code>，
             <code className={styles.mono}>resources.agents</code> 限定可调查的机器）。
-            这里只保存在当前标签页的 sessionStorage，关闭标签页即清除；不要把它写进工单或截图。
+            它<b>不经过本页面</b>：示例统一写成{" "}
+            <code className={styles.mono}>{'"authorization: Bearer ${WCR_TOKEN}"'}</code>，
+            在自己的终端里先灌进去再跑：
+          </p>
+
+          <pre className={styles.code}>
+            {"read -rs WCR_TOKEN && export WCR_TOKEN   # 不回显，也不进 shell history"}
+          </pre>
+
+          <p className={styles.note}>
+            不要直接把令牌拼进命令行：那会留在 <code className={styles.mono}>~/.zsh_history</code> 里，
+            运行期间也会出现在 <code className={styles.mono}>ps</code> 输出中。也不要把令牌写进工单或截图。
           </p>
 
           <p className={styles.note}>
@@ -390,21 +359,19 @@ function OperationCard({
   operation,
   document,
   baseUrl,
-  token,
 }: {
   path: string;
   method: string;
   operation: OpenApiOperation;
   document: OpenApiDocument;
   baseUrl: string;
-  token: string;
 }) {
   const parameters = parameterRows(operation, document);
   const media = operation.requestBody?.content?.["application/json"];
   const fields = media ? schemaFields(media.schema, document) : [];
   const example = requestBodyExample(operation, document);
   const secured = isSecured(operation, document);
-  const curl = curlForOperation({ method, path, baseUrl, example, token });
+  const curl = curlForOperation({ method, path, baseUrl, example });
 
   return (
     <details className={styles.operation}>

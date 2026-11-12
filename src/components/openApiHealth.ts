@@ -127,29 +127,31 @@ export function isSecured(
   return (operation.security ?? document?.security ?? []).length > 0;
 }
 
-/** 一个接口的 curl 示例。路径参数写成 `<id>`，看得出是占位符。 */
+/** 一个接口的 curl 示例。路径参数写成 `<id>`，看得出是占位符。
+ *
+ * 令牌**永远**写成 `${WCR_TOKEN}`，不拼明文：示例要能随手复制安全。
+ * 把真值拼进命令行会落到 shell history（`~/.zsh_history`）和 `ps` 输出里，
+ * 而页面自己又要求「令牌别写进工单或截图」—— 两边口径不能打架。
+ * 取值方式见页面提示（`read -rs WCR_TOKEN`）。
+ */
 export function curlForOperation({
   method,
   path,
   baseUrl,
   example,
-  token,
 }: {
   method: string;
   path: string;
   baseUrl: string;
   example?: string | null;
-  /** 调用方提供的 `wcr_…` 令牌；为空时用占位符。 */
-  token?: string;
 }): string {
   const base = baseUrl.trim().replace(/\/+$/, "");
   const target = `${base || "https://<开放面地址>"}${path.replace(
     /\{([^}]+)\}/g,
     "<$1>",
   )}`;
-  const bearer = token?.trim() ? token.trim() : "<wcr_…>";
   const lines = [`curl -s -X ${method.toUpperCase()} '${target}'`];
-  lines.push(`  -H "authorization: Bearer ${bearer}"`);
+  lines.push('  -H "authorization: Bearer ${WCR_TOKEN}"');
   if (method.toLowerCase() === "post") {
     lines.push("  -H 'content-type: application/json'");
     lines.push("  -H 'idempotency-key: <uuid>'");

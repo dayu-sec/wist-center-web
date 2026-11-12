@@ -185,7 +185,6 @@ const postCurl = curlForOperation({
   path: "/api/v1/open/investigations",
   baseUrl: "https://open.example.com/",
   example,
-  token: "wcr_case_token",
 });
 assert(
   postCurl.includes(
@@ -193,7 +192,9 @@ assert(
   ),
   postCurl,
 );
-assert(postCurl.includes('authorization: Bearer wcr_case_token'), postCurl);
+// 令牌永远是 `${WCR_TOKEN}`：示例要能安全复制，不能把明文拼进命令行。
+assert(postCurl.includes('authorization: Bearer ${WCR_TOKEN}'), postCurl);
+assert(!postCurl.includes("wcr_"), "示例不得包含任何令牌真值");
 assert(postCurl.includes("idempotency-key: <uuid>"), postCurl);
 assert(postCurl.includes("-d '"), postCurl);
 
@@ -209,8 +210,8 @@ assert(
   getCurl,
 );
 assert(
-  getCurl.includes("authorization: Bearer <wcr_…>"),
-  "没填令牌时要用占位符，不能伪造一个 token",
+  getCurl.includes("authorization: Bearer ${WCR_TOKEN}"),
+  "令牌占位符必须与有值时的写法一致，只来自环境变量",
 );
 assert(!getCurl.includes("idempotency-key"), "GET 不应带幂等键");
 assert(!getCurl.includes("-d '"), "GET 不应带请求体");
