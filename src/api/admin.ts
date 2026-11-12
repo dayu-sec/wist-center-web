@@ -3523,3 +3523,104 @@ export async function fetchAgentInvestigationContent(
   }
   return response.text();
 }
+
+// ── 开放面（第三方调查 API）：探活 + OpenAPI 清单 ──
+//
+// 这份数据只给控制台的「接口可用性」页用：探活由中心自己打（回环），
+// 接口清单由中心自己输出 —— 页面不维护第二份路径 / 参数。
+
+export interface OpenApiSchema {
+  $ref?: string;
+  type?: string | string[];
+  format?: string;
+  nullable?: boolean;
+  enum?: unknown[];
+  description?: string;
+  example?: unknown;
+  items?: OpenApiSchema;
+  properties?: Record<string, OpenApiSchema>;
+  required?: string[];
+  oneOf?: OpenApiSchema[];
+  anyOf?: OpenApiSchema[];
+}
+
+export interface OpenApiParameter {
+  name: string;
+  in: string;
+  required?: boolean;
+  description?: string;
+  schema?: OpenApiSchema;
+}
+
+export interface OpenApiMediaType {
+  schema?: OpenApiSchema;
+  example?: unknown;
+}
+
+export interface OpenApiRequestBody {
+  description?: string;
+  required?: boolean;
+  content?: Record<string, OpenApiMediaType>;
+}
+
+export interface OpenApiResponse {
+  description?: string;
+  content?: Record<string, OpenApiMediaType>;
+}
+
+export interface OpenApiOperation {
+  summary?: string;
+  description?: string;
+  tags?: string[];
+  parameters?: OpenApiParameter[];
+  requestBody?: OpenApiRequestBody;
+  responses?: Record<string, OpenApiResponse>;
+  security?: Record<string, string[]>[];
+}
+
+export interface OpenApiDocument {
+  openapi: string;
+  info: { title: string; version: string; description?: string };
+  servers?: { url: string; description?: string }[];
+  /** `{ [path]: { get: OpenApiOperation, … } }` */
+  paths: Record<string, Record<string, OpenApiOperation>>;
+  security?: Record<string, string[]>[];
+  components?: {
+    schemas?: Record<string, OpenApiSchema>;
+    securitySchemes?: Record<string, unknown>;
+  };
+}
+
+export type OpenApiInterfaceStatus =
+  | "ok"
+  | "unavailable"
+  | "not_configured"
+  | (string & {});
+
+/** 一条探活结果。`not_configured` 是「未启用」，不是故障。 */
+export interface OpenApiInterface {
+  id: string;
+  label: string;
+  url: string;
+  status: OpenApiInterfaceStatus;
+  detail?: string;
+  covers?: string;
+  latency_ms?: number;
+  checked_at_ms: number;
+}
+
+export interface OpenApiStatus {
+  enabled: boolean;
+  listen_addr: string | null;
+  base_url: string | null;
+  required_role: string;
+  credentials_enabled: boolean;
+  checked_at_ms: number;
+  interfaces: OpenApiInterface[];
+  openapi: OpenApiDocument;
+}
+
+/** 开放面自述：探活结果 + OpenAPI 清单（中心自己输出）。 */
+export async function fetchOpenApiStatus(): Promise<OpenApiStatus> {
+  return requestJson<OpenApiStatus>("/api/v1/admin/open-api");
+}

@@ -7,6 +7,7 @@ import { AgentDetailPage } from "./components/AgentDetailPage";
 import { GatewayInstancePage } from "./components/GatewayInstancePage";
 import { GatewayInstanceDetailPage } from "./components/GatewayInstanceDetailPage";
 import { JobsPage } from "./components/JobsPage";
+import { OpenApiAvailabilityPage } from "./components/OpenApiAvailabilityPage";
 import { PackageListPage } from "./components/PackageListPage";
 import { PackageAddPage } from "./components/PackageAddPage";
 import { ReleasePage } from "./components/ReleasePage";
@@ -32,6 +33,9 @@ export function App() {
         <Route path="/instance" element={<GatewayInstancePage />} />
         {/* 任务队列：中心执行的异步后台任务（远程包下载等），排队中可取消。 */}
         <Route path="/jobs" element={<JobsPage />} />
+        {/* 开放面（第三方调查 API）的自查：探活 + OpenAPI 清单 + curl 示例。
+            路径**不能**以 `/api` 开头：dev / 生产都把 `/api` 前缀反代给中心。 */}
+        <Route path="/interfaces" element={<OpenApiAvailabilityPage />} />
         <Route
           path="/instance/:gatewayId"
           element={<GatewayInstanceDetailPage />}

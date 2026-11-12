@@ -79,11 +79,28 @@ function IconJobs() {
   );
 }
 
+function IconHealth() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path
+        d="M1.8 8h3l1.6-3.2L9 11.2 10.6 8h3.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" strokeWidth="1.2" opacity="0.45" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
     items: [
       { to: "/", label: "网关态势", icon: <IconOverview />, end: true },
+      { to: "/interfaces", label: "接口可用性", icon: <IconHealth />, end: true },
     ],
   },
   {

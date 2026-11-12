@@ -1,7 +1,7 @@
 {
   "name": "wist-center-web",
   "private": true,
-  "version": "0.29.0",
+  "version": "0.30.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,7 +33,8 @@
     "test:version": "tsx tests/version-contract.test.ts",
     "preview": "vite preview",
     "test:agent-investigation": "tsx tests/agent-investigation.test.ts",
-    "test:agent-investigation-presentation": "tsx tests/agent-investigation-presentation.test.ts"
+    "test:agent-investigation-presentation": "tsx tests/agent-investigation-presentation.test.ts",
+    "test:open-api-health": "tsx tests/open-api-health.test.ts"
   },
   "dependencies": {
     "@dayu-sec/wist-web-core": "github:dayu-sec/wist-web-core#v0.2.0",
